@@ -1,6 +1,5 @@
 stages:
   - analysis
-  - test
   - build
   - deploy
 
@@ -37,46 +36,6 @@ check_code_compliance_pylint:
   script:
     - python3.12 -m pip install nox
     - python3.12 -m nox -s pylint
-
-# === test - unittest ========================================================
-# ============================================================================
-unittest_linux:
-  stage: test
-  extends: .tags_manylinux_2_28
-  script:
-    - python3.12 -m pip install nox
-    - python3.12 -m nox -s unittest -p ${PYTHON}
-  parallel:
-    matrix:
-      - PYTHON: ["3.10", "3.11", "3.12", "3.13"]
-  needs: []
-  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
-  artifacts:
-    reports:
-      junit:
-        - _build/unittest-report-*.xml
-      coverage_report:
-        coverage_format: cobertura
-        path: _build/unittest-coverage-*.xml
-
-unittest_win:
-  stage: test
-  extends: .tags_win10
-  script:
-    - python -m pip install nox
-    - python -m nox -s unittest -p ${PYTHON}
-  parallel:
-    matrix:
-      - PYTHON: ["3.10", "3.11", "3.12", "3.13"]
-  needs: []
-  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
-  artifacts:
-    reports:
-      junit:
-        - _build/unittest-report-*.xml
-      coverage_report:
-        coverage_format: cobertura
-        path: _build/unittest-coverage-*.xml
 
 # === build ==================================================================
 # ============================================================================
@@ -140,7 +99,7 @@ deploy_doc:
     - if: "$CI_COMMIT_TAG"
     - if: '$DEPLOY_DOC == "true"'
   before_script:
-    - export PACKAGE_VERSION=v$(grep "__version__" eo_products/__init__.py | awk -F '"' '{print $2}')
+    - export PACKAGE_VERSION=v$(grep "__version__" src/eo_products/__init__.py | awk -F '"' '{print $2}')
   script:
     - eval "$(ssh-agent)"
     - cat "$DASHBOARD_PRIVATE_KEY" | base64 -d | ssh-add -

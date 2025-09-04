@@ -16,8 +16,6 @@ from pathlib import Path
 import h5py
 import numpy as np
 from arepytools.geometry.orbit import Orbit
-from arepytools.io.metadata import DopplerCentroid, DopplerCentroidVector, DopplerRate, DopplerRateVector
-from arepytools.math.genericpoly import SortedPolyList, create_sorted_poly_list
 from arepytools.timing.precisedatetime import PreciseDateTime
 from lxml import etree
 from numpy.polynomial import Polynomial
@@ -29,6 +27,7 @@ from eo_products.common.utilities import (
     ConversionFunction,
     CoordinatesConversions,
     DatasetInfo,
+    DopplerEvaluator,
     OrbitDirection,
     PulseInfo,
     RasterInfo,
@@ -355,8 +354,8 @@ def pulse_info_from_metadata(root: etree._Element | h5py.File) -> PulseInfo:
     )
 
 
-def doppler_centroid_poly_from_metadata(root: etree._Element | h5py.File, raster_info: RasterInfo) -> SortedPolyList:
-    """Creating a SortedPolyList Arepytools doppler centroid polynomial wrapper from metadata.
+def doppler_centroid_poly_from_metadata(root: etree._Element | h5py.File, raster_info: RasterInfo) -> DopplerEvaluator:
+    """Creating a DopplerEvaluator doppler centroid polynomial wrapper from metadata.
 
     Parameters
     ----------
@@ -367,11 +366,10 @@ def doppler_centroid_poly_from_metadata(root: etree._Element | h5py.File, raster
 
     Returns
     -------
-    SortedPolyList
-        SortedPolyList wrapper on DopplerCentroidVector metadata object
+    DopplerEvaluator
+        DopplerEvaluator dataclass for Doppler Centroid polynomial
     """
-
-    doppler_poly = []
+    doppler_poly_list = []
     if isinstance(root, h5py.File):
         # SLC case
         acquisition_mode = ICEYEAcquisitionMode(root["acquisition_mode"][()].decode().lower())
@@ -415,19 +413,15 @@ def doppler_centroid_poly_from_metadata(root: etree._Element | h5py.File, raster
             origin = np.array([origin[0]])
 
     for coeff, time, t_ref in zip(coeff_raw, time_axis, origin, strict=True):
-        doppler_poly.append(
-            DopplerCentroid(
-                i_ref_az=time,
-                i_ref_rg=t_ref,
-                i_coefficients=[coeff[0], coeff[1], 0, 0, coeff[2], coeff[3], 0, 0, 0, 0, 0],
-            )
+        doppler_poly_list.append(
+            ConversionFunction(azimuth_reference_time=time, origin=t_ref, function=Polynomial(coeff))
         )
 
-    return create_sorted_poly_list(DopplerCentroidVector(i_poly2d=doppler_poly))
+    return DopplerEvaluator(functions=doppler_poly_list, azimuth_reference_times=np.array(time_axis))
 
 
-def doppler_rate_poly_from_metadata(root: etree._Element | h5py.File, raster_info: RasterInfo) -> SortedPolyList:
-    """Creating a SortedPolyList Arepytools doppler rate vector polynomial wrapper from metadata.
+def doppler_rate_poly_from_metadata(root: etree._Element | h5py.File, raster_info: RasterInfo) -> DopplerEvaluator:
+    """Creating a DopplerEvaluator doppler rate vector polynomial wrapper from metadata.
 
     Parameters
     ----------
@@ -438,8 +432,8 @@ def doppler_rate_poly_from_metadata(root: etree._Element | h5py.File, raster_inf
 
     Returns
     -------
-    SortedPolyList
-        SortedPolyList wrapper on DopplerRateVector metadata object
+    DopplerEvaluator
+        DopplerEvaluator dataclass for Doppler Rate polynomial
     """
     doppler_rate_poly = []
     if isinstance(root, h5py.File):
@@ -457,14 +451,14 @@ def doppler_rate_poly_from_metadata(root: etree._Element | h5py.File, raster_inf
         ][0]
 
     doppler_rate_poly = [
-        DopplerRate(
-            i_ref_az=ref_az_time,
-            i_ref_rg=ref_rng_time,
-            i_coefficients=[coeff_raw[0], coeff_raw[1], 0, 0, coeff_raw[2], coeff_raw[3], 0, 0, 0, 0, 0],
+        ConversionFunction(
+            azimuth_reference_time=ref_az_time,
+            origin=ref_rng_time,
+            function=Polynomial(coeff_raw),
         )
     ]
 
-    return create_sorted_poly_list(DopplerRateVector(i_poly2d=doppler_rate_poly))
+    return DopplerEvaluator(functions=doppler_rate_poly, azimuth_reference_times=np.array([ref_az_time]))
 
 
 def calibration_factor_and_radiometric_quantity_from_metadata(
@@ -745,8 +739,8 @@ class ICEYEChannelMetadata:
     dataset_info: DatasetInfo
     swath_info: SwathInfo
     sampling_constants: SARSamplingFrequencies
-    doppler_centroid_poly: SortedPolyList
-    doppler_rate_poly: SortedPolyList
+    doppler_centroid_poly: DopplerEvaluator
+    doppler_rate_poly: DopplerEvaluator
     incidence_angles_poly: ICEYEIncidenceAnglePolynomial
     pulse: PulseInfo
     coordinate_conversions: CoordinatesConversions

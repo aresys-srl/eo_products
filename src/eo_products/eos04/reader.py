@@ -15,7 +15,7 @@ import zarr
 from lxml import etree
 from tifffile import imread
 
-import eo_products.eos.utilities as support
+import eo_products.eos04.utilities as support
 from eo_products.common.utilities import SARRadiometricQuantity
 
 

@@ -14,8 +14,6 @@ from pathlib import Path
 
 import numpy as np
 from arepytools.geometry.orbit import Orbit
-from arepytools.io.metadata import DopplerCentroid, DopplerCentroidVector, DopplerRate, DopplerRateVector
-from arepytools.math.genericpoly import SortedPolyList, create_sorted_poly_list
 from arepytools.timing.precisedatetime import PreciseDateTime
 from lxml import etree
 from numpy.polynomial import Polynomial
@@ -25,6 +23,7 @@ from eo_products.common.utilities import (
     ConversionFunction,
     CoordinatesConversions,
     DatasetInfo,
+    DopplerEvaluator,
     OrbitDirection,
     PulseInfo,
     RasterInfo,
@@ -330,8 +329,8 @@ def pulse_from_metadata(node: etree._Element) -> PulseInfo | None:
     )
 
 
-def doppler_poly_from_metadata(node: etree._Element, doppler_node_tag: str) -> SortedPolyList:
-    """Creating a SortedPolyList Arepytools object for Doppler Polynomial from metadata file.
+def doppler_poly_from_metadata(node: etree._Element, doppler_node_tag: str) -> DopplerEvaluator:
+    """Creating a DopplerEvaluator doppler centroid/rate polynomial wrapper from metadata.
 
     Parameters
     ----------
@@ -342,8 +341,8 @@ def doppler_poly_from_metadata(node: etree._Element, doppler_node_tag: str) -> S
 
     Returns
     -------
-    SortedPolyList
-        Doppler polynomial SortedPolyList object
+    DopplerEvaluator
+        DopplerEvaluator dataclass for Doppler Centroid/Rate polynomial
     """
 
     azimuth_ref_times, range_ref_times, coefficients = _extract_poly_info_from_node(node, doppler_node_tag)
@@ -355,30 +354,16 @@ def doppler_poly_from_metadata(node: etree._Element, doppler_node_tag: str) -> S
 
     doppler_poly_list = []
     for az_t_ref, rng_t_ref, coeffs in zip(azimuth_ref_times, range_ref_times, coefficients, strict=False):
-        if doppler_node_tag == "DopplerCentroid":
-            doppler_poly_list.append(
-                DopplerCentroid(
-                    i_ref_az=az_t_ref,
-                    i_ref_rg=rng_t_ref,
-                    i_coefficients=coeffs,
-                )
+        coeffs_rng = [coeffs[0], coeffs[1], coeffs[4], coeffs[5], coeffs[6]]
+        doppler_poly_list.append(
+            ConversionFunction(
+                azimuth_reference_time=az_t_ref,
+                origin=rng_t_ref,
+                function=Polynomial(coeffs_rng),
             )
-        else:
-            doppler_poly_list.append(
-                DopplerRate(
-                    i_ref_az=az_t_ref,
-                    i_ref_rg=rng_t_ref,
-                    i_coefficients=coeffs,
-                )
-            )
+        )
 
-    doppler_vector = (
-        DopplerCentroidVector(doppler_poly_list)
-        if doppler_node_tag == "DopplerCentroid"
-        else DopplerRateVector(doppler_poly_list)
-    )
-
-    return create_sorted_poly_list(poly2d_vector=doppler_vector)
+    return DopplerEvaluator(functions=doppler_poly_list, azimuth_reference_times=np.array(azimuth_ref_times))
 
 
 def coordinates_conversions_from_metadata(node: etree._Element) -> CoordinatesConversions:
@@ -620,8 +605,8 @@ class SAOCOMChannelMetadata:
     dataset_info: DatasetInfo
     swath_info: SwathInfo
     sampling_constants: SARSamplingFrequencies
-    doppler_centroid_poly: SortedPolyList
-    doppler_rate_poly: SortedPolyList
+    doppler_centroid_poly: DopplerEvaluator
+    doppler_rate_poly: DopplerEvaluator
     pulse: PulseInfo | None
     coordinate_conversions: CoordinatesConversions
     state_vectors: StateVectors

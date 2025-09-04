@@ -42,7 +42,7 @@ def check_format(session: nox.Session):
             header = ifile.readline() + ifile.readline() + ifile.readline()
             return header != _LICENSE_HEADER
 
-    source_files = glob.glob("eo_products/**/*.py", recursive=True)
+    source_files = glob.glob("src/eo_products/**/*.py", recursive=True)
     no_licensed_files = list(filter(wrong_license_header, source_files))
 
     if len(no_licensed_files) > 0:
@@ -55,7 +55,7 @@ def check_format(session: nox.Session):
 def pylint(session: nox.Session):
     """Analysis of code-base quality with pylint"""
     session.install("pylint")
-    session.run("python", "-m", "pylint", "eo_products")
+    session.run("python", "-m", "pylint", "src")
 
 
 @nox.session(python=PY_VERSIONS)

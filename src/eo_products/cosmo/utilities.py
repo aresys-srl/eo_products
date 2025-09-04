@@ -15,8 +15,6 @@ from pathlib import Path
 import h5py
 import numpy as np
 from arepytools.geometry.orbit import Orbit
-from arepytools.io.metadata import DopplerCentroid, DopplerCentroidVector, DopplerRate, DopplerRateVector
-from arepytools.math.genericpoly import SortedPolyList, create_sorted_poly_list
 from arepytools.timing.precisedatetime import PreciseDateTime
 from numpy.polynomial import Polynomial
 from scipy.constants import speed_of_light
@@ -26,6 +24,7 @@ from eo_products.common.utilities import (
     ConversionFunction,
     CoordinatesConversions,
     DatasetInfo,
+    DopplerEvaluator,
     OrbitDirection,
     PulseInfo,
     RasterInfo,
@@ -298,8 +297,8 @@ def pulse_info_from_metadata(swath_attributes: h5py.AttributeManager) -> PulseIn
     )
 
 
-def doppler_centroid_poly_from_metadata(root_attributes: h5py.AttributeManager) -> SortedPolyList:
-    """Creating a SortedPolyList Arepytools doppler centroid polynomial wrapper from metadata.
+def doppler_centroid_poly_from_metadata(root_attributes: h5py.AttributeManager) -> DopplerEvaluator:
+    """Creating a DopplerEvaluator doppler centroid polynomial wrapper from metadata.
 
     Parameters
     ----------
@@ -308,41 +307,29 @@ def doppler_centroid_poly_from_metadata(root_attributes: h5py.AttributeManager) 
 
     Returns
     -------
-    SortedPolyList
-        SortedPolyList wrapper on DopplerCentroidVector metadata object
+    DopplerEvaluator
+        DopplerEvaluator dataclass for Doppler Centroid polynomial
     """
-    # TODO: use also the azimuth polynomial?
-    doppler_rate_poly = root_attributes["Centroid vs Range Time Polynomial"]
+    doppler_rate_coeffs = root_attributes["Centroid vs Range Time Polynomial"]
     ref_az_time = root_attributes["Azimuth Polynomial Reference Time"] + PreciseDateTime.from_utc_string(
         root_attributes["Reference UTC"].decode()
     )
     ref_rng_time = root_attributes["Range Polynomial Reference Time"]
 
-    doppler_poly = [
-        DopplerCentroid(
-            i_ref_az=ref_az_time,
-            i_ref_rg=ref_rng_time,
-            i_coefficients=[
-                doppler_rate_poly[0],
-                doppler_rate_poly[1],
-                0,
-                0,
-                doppler_rate_poly[2],
-                doppler_rate_poly[3],
-                doppler_rate_poly[4],
-                doppler_rate_poly[5],
-                0,
-                0,
-                0,
-            ],
+    # assembling list of polynomials
+    doppler_poly_list = [
+        ConversionFunction(
+            azimuth_reference_time=ref_az_time,
+            origin=ref_rng_time,
+            function=Polynomial(doppler_rate_coeffs),
         )
     ]
 
-    return create_sorted_poly_list(DopplerCentroidVector(i_poly2d=doppler_poly))
+    return DopplerEvaluator(functions=doppler_poly_list, azimuth_reference_times=np.array([ref_az_time]))
 
 
-def doppler_rate_poly_from_metadata(root_attributes: h5py.AttributeManager) -> SortedPolyList:
-    """Creating a SortedPolyList Arepytools doppler rate vector polynomial wrapper from metadata.
+def doppler_rate_poly_from_metadata(root_attributes: h5py.AttributeManager) -> DopplerEvaluator:
+    """Creating a DopplerEvaluator doppler rate vector polynomial wrapper from metadata.
 
     Parameters
     ----------
@@ -351,37 +338,25 @@ def doppler_rate_poly_from_metadata(root_attributes: h5py.AttributeManager) -> S
 
     Returns
     -------
-    SortedPolyList
-        SortedPolyList wrapper on DopplerRateVector metadata object
+    DopplerEvaluator
+        DopplerEvaluator dataclass for Doppler Rate polynomial
     """
-    # TODO: use also the azimuth polynomial?
-    doppler_rate_poly = root_attributes["Doppler Rate vs Range Time Polynomial"]
+    doppler_rate_coeffs = root_attributes["Doppler Rate vs Range Time Polynomial"]
     ref_az_time = root_attributes["Azimuth Polynomial Reference Time"] + PreciseDateTime.from_utc_string(
         root_attributes["Reference UTC"].decode()
     )
     ref_rng_time = root_attributes["Range Polynomial Reference Time"]
 
-    doppler_rate_poly = [
-        DopplerRate(
-            i_ref_az=ref_az_time,
-            i_ref_rg=ref_rng_time,
-            i_coefficients=[
-                doppler_rate_poly[0],
-                doppler_rate_poly[1],
-                0,
-                0,
-                doppler_rate_poly[2],
-                doppler_rate_poly[3],
-                doppler_rate_poly[4],
-                doppler_rate_poly[5],
-                0,
-                0,
-                0,
-            ],
+    # assembling list of polynomials
+    doppler_poly_list = [
+        ConversionFunction(
+            azimuth_reference_time=ref_az_time,
+            origin=ref_rng_time,
+            function=Polynomial(doppler_rate_coeffs),
         )
     ]
 
-    return create_sorted_poly_list(DopplerRateVector(i_poly2d=doppler_rate_poly))
+    return DopplerEvaluator(functions=doppler_poly_list, azimuth_reference_times=np.array([ref_az_time]))
 
 
 def coordinates_conversions_from_metadata(
@@ -424,7 +399,7 @@ def coordinates_conversions_from_metadata(
     origin = root_attributes["Ground Projection Polynomial Reference Range"]
     slant_origin = origin * METERS_TO_SECONDS_CONVERSION
     # divide by samples step in meters
-    # check with current translated product and its usage in quality protocol for PF
+    # check with current translated product and its usage in protocol for PF
     slant_to_ground_coefficients = [
         c / (METERS_TO_SECONDS_CONVERSION**c_id) * range_step_m
         for c_id, c in enumerate(root_attributes["Slant to Ground Polynomial"])
@@ -680,8 +655,8 @@ class COSMOChannelMetadata:
     dataset_info: DatasetInfo
     swath_info: SwathInfo
     sampling_constants: SARSamplingFrequencies
-    doppler_centroid_poly: SortedPolyList
-    doppler_rate_poly: SortedPolyList
+    doppler_centroid_poly: DopplerEvaluator
+    doppler_rate_poly: DopplerEvaluator
     pulse: PulseInfo
     coordinate_conversions: CoordinatesConversions
     state_vectors: StateVectors

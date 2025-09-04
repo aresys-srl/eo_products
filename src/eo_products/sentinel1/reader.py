@@ -214,12 +214,12 @@ def read_channel_metadata(
 
     # doppler centroid vector
     # TODO: check if forcing estimate method to be DATA is correct
-    doppler_centroid_vector = support.doppler_centroid_vector_from_metadata_nodes(
+    doppler_centroid_poly = support.doppler_centroid_evaluator_from_metadata_nodes(
         dc_estimate_node=dc_estimate, estimate_method=support.S1DCEstimateMethod.DATA
     )
 
     # doppler rate vector
-    doppler_rate_vector = support.doppler_rate_vector_from_metadata_nodes(azimuth_fm_rate_node=azimuth_fm_rate)
+    doppler_rate_poly = support.doppler_rate_evaluator_from_metadata_nodes(azimuth_fm_rate_node=azimuth_fm_rate)
 
     # pulse
     pulse = support.S1Pulse.from_metadata_nodes(
@@ -252,8 +252,8 @@ def read_channel_metadata(
         swath_info=swath_info,
         sampling_constants=sampling_constants,
         acquisition_timeline=acquisition_timeline,
-        doppler_centroid_poly=doppler_centroid_vector,
-        doppler_rate_vector=doppler_rate_vector,
+        doppler_centroid_poly=doppler_centroid_poly,
+        doppler_rate_poly=doppler_rate_poly,
         pulse=pulse,
         coordinate_conversions=coords_conversion,
         state_vectors=state_vectors,

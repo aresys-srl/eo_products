@@ -15,8 +15,6 @@ from pathlib import Path
 
 import numpy as np
 from arepytools.geometry.orbit import Orbit
-from arepytools.io.metadata import DopplerCentroid, DopplerCentroidVector, DopplerRate, DopplerRateVector
-from arepytools.math.genericpoly import SortedPolyList, create_sorted_poly_list
 from arepytools.timing.precisedatetime import PreciseDateTime
 from lxml import etree
 from numpy.polynomial import Polynomial
@@ -27,6 +25,7 @@ from eo_products.common.utilities import (
     ConversionFunction,
     CoordinatesConversions,
     DatasetInfo,
+    DopplerEvaluator,
     OrbitDirection,
     RasterInfo,
     RasterInfoAxis,
@@ -402,8 +401,8 @@ def calibration_factor_from_metadata(file_path: str | Path, product_type: RADARS
 
 def doppler_centroid_poly_from_metadata(
     doppler_centroid_node: etree._Element, namespace: dict[str, str]
-) -> SortedPolyList:
-    """Creating a SortedPolyList Arepytools doppler centroid polynomial wrapper from safe xml node.
+) -> DopplerEvaluator:
+    """Creating a DopplerEvaluator doppler centroid polynomial wrapper from metadata.
 
     Parameters
     ----------
@@ -414,8 +413,8 @@ def doppler_centroid_poly_from_metadata(
 
     Returns
     -------
-    SortedPolyList
-        SortedPolyList wrapper on DopplerCentroidVector metadata object
+    DopplerEvaluator
+        DopplerEvaluator dataclass for Doppler Centroid polynomial
     """
     azimuth_time_ref = PreciseDateTime.fromisoformat(
         doppler_centroid_node.xpath(".//base:timeOfDopplerCentroidEstimate", namespaces=namespace)[0].text
@@ -429,28 +428,20 @@ def doppler_centroid_poly_from_metadata(
             0
         ].text.split()
     ]
-    # up to 5 coefficients can be present, but not always 5
-    if len(coeff_raw) < 5:
-        for _ in range(5 - len(coeff_raw)):
-            coeff_raw.append(0)
-    coefficients = [
-        coeff_raw[0],
-        coeff_raw[1],
-        0,  # mixed term
-        0,  # mixed term
-        coeff_raw[2],
-        coeff_raw[3],
-        coeff_raw[4],
-        0,
+
+    doppler_poly_list = [
+        ConversionFunction(
+            azimuth_reference_time=azimuth_time_ref,
+            origin=range_time_ref,
+            function=Polynomial(coeff_raw),
+        )
     ]
 
-    doppler_centroid = DopplerCentroid(i_ref_az=azimuth_time_ref, i_ref_rg=range_time_ref, i_coefficients=coefficients)
-
-    return create_sorted_poly_list(poly2d_vector=DopplerCentroidVector([doppler_centroid]))
+    return DopplerEvaluator(functions=doppler_poly_list, azimuth_reference_times=np.array([azimuth_time_ref]))
 
 
-def doppler_rate_poly_from_metadata(doppler_rate_node: etree._Element, namespace: dict[str, str]) -> SortedPolyList:
-    """Creating a SortedPolyList Arepytools doppler rate polynomial wrapper from safe xml node.
+def doppler_rate_poly_from_metadata(doppler_rate_node: etree._Element, namespace: dict[str, str]) -> DopplerEvaluator:
+    """Creating a DopplerEvaluator doppler rate vector polynomial wrapper from metadata.
 
     Parameters
     ----------
@@ -461,8 +452,8 @@ def doppler_rate_poly_from_metadata(doppler_rate_node: etree._Element, namespace
 
     Returns
     -------
-    SortedPolyList
-        SortedPolyList wrapper on DopplerRateVector metadata object
+    DopplerEvaluator
+        DopplerEvaluator dataclass for Doppler Rate polynomial
     """
     azimuth_ref = PreciseDateTime.fromisoformat(
         doppler_rate_node.xpath("..//base:dopplerCentroid/base:timeOfDopplerCentroidEstimate", namespaces=namespace)[
@@ -474,24 +465,16 @@ def doppler_rate_poly_from_metadata(doppler_rate_node: etree._Element, namespace
         float(c)
         for c in doppler_rate_node.xpath(".//base:dopplerRateValuesCoefficients", namespaces=namespace)[0].text.split()
     ]
-    # up to 5 coefficients can be present, but not always 5
-    if len(coeff_raw) < 5:
-        for _ in range(5 - len(coeff_raw)):
-            coeff_raw.append(0)
-    coefficients = [
-        coeff_raw[0],
-        coeff_raw[1],
-        0,  # mixed term
-        0,  # mixed term
-        coeff_raw[2],
-        coeff_raw[3],
-        coeff_raw[4],
-        0,
+
+    doppler_poly_list = [
+        ConversionFunction(
+            azimuth_reference_time=azimuth_ref,
+            origin=range_time_ref,
+            function=Polynomial(coeff_raw),
+        )
     ]
 
-    doppler_rate = DopplerRate(i_ref_az=azimuth_ref, i_ref_rg=range_time_ref, i_coefficients=coefficients)
-
-    return create_sorted_poly_list(poly2d_vector=DopplerRateVector([doppler_rate]))
+    return DopplerEvaluator(functions=doppler_poly_list, azimuth_reference_times=np.array([azimuth_ref]))
 
 
 def coordinates_conversions_from_metadata(
@@ -737,8 +720,8 @@ class RADARSATChannelMetadata:
     orbit: Orbit
     samples_ordering: RADARSATTimeOrdering
     lines_ordering: RADARSATTimeOrdering
-    doppler_centroid_poly: SortedPolyList
-    doppler_rate_poly: SortedPolyList
+    doppler_centroid_poly: DopplerEvaluator
+    doppler_rate_poly: DopplerEvaluator
     coordinate_conversions: CoordinatesConversions
 
 

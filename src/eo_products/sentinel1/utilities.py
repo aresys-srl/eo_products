@@ -15,8 +15,6 @@ from pathlib import Path
 
 import numpy as np
 from arepytools.geometry.orbit import Orbit
-from arepytools.io.metadata import DopplerCentroid, DopplerCentroidVector, DopplerRate, DopplerRateVector
-from arepytools.math.genericpoly import SortedPolyList, create_sorted_poly_list
 from arepytools.timing.precisedatetime import InvalidUtcString, PreciseDateTime
 from lxml import etree
 from numpy.polynomial.polynomial import Polynomial
@@ -27,6 +25,7 @@ from eo_products.common.utilities import (
     ConversionFunction,
     CoordinatesConversions,
     DatasetInfo,
+    DopplerEvaluator,
     OrbitDirection,
     RasterInfo,
     RasterInfoAxis,
@@ -471,10 +470,10 @@ def acquisition_timeline_from_metadata_nodes(downlink_info_node: etree._Element)
     )
 
 
-def doppler_centroid_vector_from_metadata_nodes(
+def doppler_centroid_evaluator_from_metadata_nodes(
     dc_estimate_node: etree._Element, estimate_method: S1DCEstimateMethod
-) -> SortedPolyList:
-    """Creating a SortedPolyList Arepytools doppler centroid polynomial wrapper from safe xml node.
+) -> DopplerEvaluator:
+    """Creating a DopplerEvaluator doppler centroid polynomial wrapper from metadata.
 
     Parameters
     ----------
@@ -485,30 +484,32 @@ def doppler_centroid_vector_from_metadata_nodes(
 
     Returns
     -------
-    SortedPolyList
-        SortedPolyList wrapper on DopplerCentroidVector metadata object
+    DopplerEvaluator
+        DopplerEvaluator dataclass for Doppler Centroid polynomial
     """
-    doppler_poly = []
+    doppler_poly_list = []
     for item in dc_estimate_node:
         if estimate_method == S1DCEstimateMethod.DATA:
             coefficients = [float(c) for c in item.find("dataDcPolynomial").text.split(" ")]
         else:
             coefficients = [float(c) for c in item.find("geometryDcPolynomial").text.split(" ")]
 
-        coefficients = [coefficients[0], coefficients[1], 0, 0, coefficients[2], 0, 0, 0, 0, 0, 0]
-        doppler_poly.append(
-            DopplerCentroid(
-                i_ref_az=PreciseDateTime.from_utc_string(item.find("azimuthTime").text),
-                i_ref_rg=float(item.find("t0").text),
-                i_coefficients=coefficients,
+        doppler_poly_list.append(
+            ConversionFunction(
+                azimuth_reference_time=PreciseDateTime.from_utc_string(item.find("azimuthTime").text),
+                origin=float(item.find("t0").text),
+                function=Polynomial(coefficients),
             )
         )
 
-    return create_sorted_poly_list(DopplerCentroidVector(i_poly2d=doppler_poly))
+    return DopplerEvaluator(
+        functions=doppler_poly_list,
+        azimuth_reference_times=np.array([c.azimuth_reference_time for c in doppler_poly_list]),
+    )
 
 
-def doppler_rate_vector_from_metadata_nodes(azimuth_fm_rate_node: etree._Element) -> SortedPolyList:
-    """Creating a SortedPolyList Arepytools doppler rate vector polynomial wrapper from safe xml node.
+def doppler_rate_evaluator_from_metadata_nodes(azimuth_fm_rate_node: etree._Element) -> DopplerEvaluator:
+    """Creating a DopplerEvaluator doppler rate vector polynomial wrapper from metadata.
 
     Parameters
     ----------
@@ -517,21 +518,23 @@ def doppler_rate_vector_from_metadata_nodes(azimuth_fm_rate_node: etree._Element
 
     Returns
     -------
-    SortedPolyList
-        SortedPolyList wrapper on DopplerRateVector metadata object
+    DopplerEvaluator
+        DopplerEvaluator dataclass for Doppler Rate polynomial
     """
-    doppler_rate_poly = []
+    doppler_poly_list = []
     for item in azimuth_fm_rate_node:
         coefficients = [float(c) for c in item.find("azimuthFmRatePolynomial").text.split(" ")]
-        coefficients = [coefficients[0], coefficients[1], 0, 0, coefficients[2], 0, 0, 0, 0, 0, 0]
-        doppler_rate_poly.append(
-            DopplerRate(
-                i_ref_az=PreciseDateTime.from_utc_string(item.find("azimuthTime").text),
-                i_ref_rg=float(item.find("t0").text),
-                i_coefficients=coefficients,
+        doppler_poly_list.append(
+            ConversionFunction(
+                azimuth_reference_time=PreciseDateTime.from_utc_string(item.find("azimuthTime").text),
+                origin=float(item.find("t0").text),
+                function=Polynomial(coefficients),
             )
         )
-    return create_sorted_poly_list(DopplerRateVector(i_poly2d=doppler_rate_poly))
+    return DopplerEvaluator(
+        functions=doppler_poly_list,
+        azimuth_reference_times=np.array([c.azimuth_reference_time for c in doppler_poly_list]),
+    )
 
 
 def coordinates_conversions_from_metadata(coord_conversion_node: etree._Element) -> CoordinatesConversions:
@@ -1073,8 +1076,8 @@ class S1ChannelMetadata:
     swath_info: SwathInfo
     sampling_constants: SARSamplingFrequencies
     acquisition_timeline: AcquisitionTimeline
-    doppler_centroid_poly: SortedPolyList
-    doppler_rate_vector: SortedPolyList
+    doppler_centroid_poly: DopplerEvaluator
+    doppler_rate_poly: DopplerEvaluator
     pulse: S1Pulse
     coordinate_conversions: CoordinatesConversions
     state_vectors: StateVectors

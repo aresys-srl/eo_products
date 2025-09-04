@@ -16,8 +16,6 @@ from pathlib import Path
 
 import numpy as np
 from arepytools.geometry.orbit import Orbit
-from arepytools.io.metadata import DopplerCentroid, DopplerCentroidVector, DopplerRate, DopplerRateVector
-from arepytools.math.genericpoly import SortedPolyList, create_sorted_poly_list
 from arepytools.timing.precisedatetime import PreciseDateTime
 from lxml import etree
 from numpy.polynomial.polynomial import Polynomial
@@ -28,6 +26,7 @@ from eo_products.common.utilities import (
     ConversionFunction,
     CoordinatesConversions,
     DatasetInfo,
+    DopplerEvaluator,
     OrbitDirection,
     PulseInfo,
     RasterInfo,
@@ -483,8 +482,8 @@ def pulse_info_from_metadata_nodes(source_attributes_node: etree._Element, sampl
 
 def doppler_centroid_poly_from_metadata_node(
     image_generation_parameters_node: etree._Element, raster_info: RasterInfo
-) -> SortedPolyList:
-    """Creating a SortedPolyList Arepytools doppler centroid polynomial wrapper from safe xml node.
+) -> DopplerEvaluator:
+    """Creating a DopplerEvaluator doppler centroid polynomial wrapper from metadata.
 
     Parameters
     ----------
@@ -495,10 +494,9 @@ def doppler_centroid_poly_from_metadata_node(
 
     Returns
     -------
-    SortedPolyList
-        SortedPolyList wrapper on DopplerCentroidVector metadata object
+    DopplerEvaluator
+        DopplerEvaluator dataclass for Doppler Centroid polynomial
     """
-
     coeff_raw = [
         [float(c) for c in cc.text.split()]
         for cc in image_generation_parameters_node.findall("DopplerCentroid/DopplerCentroidCoefficients")
@@ -507,36 +505,24 @@ def doppler_centroid_poly_from_metadata_node(
         PreciseDateTime.fromisoformat(tt.text)
         for tt in image_generation_parameters_node.findall("DopplerCentroid/TimeOfDopplerCentroidEstimate")
     ]
-    coefficients = [
-        [
-            c[0],
-            c[1] / raster_info.samples.step,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ]
-        for c in coeff_raw
-    ]
-    coefficients_max_num = np.amin(np.array([len(coefficients[0]) - 2, len(coeff_raw[0])]))
-    for index, _ in enumerate(coefficients):
-        for idx in range(2, coefficients_max_num):
-            coefficients[index][idx + 2] = coeff_raw[index][idx] / (raster_info.samples.step**idx)
+    coefficients = [[cc / raster_info.samples_step**cc_id for cc_id, cc in enumerate(c)] for c in coeff_raw]
 
-    doppler_centroids = [
-        DopplerCentroid(i_ref_az=ref_times[c], i_ref_rg=raster_info.samples.start, i_coefficients=coefficients[c])
+    doppler_poly_list = [
+        ConversionFunction(
+            azimuth_reference_time=ref_times[c],
+            function=coefficients[c],
+            origin=raster_info.samples.start,
+        )
         for c in range(len(coefficients))
     ]
 
-    return create_sorted_poly_list(poly2d_vector=DopplerCentroidVector(doppler_centroids))
+    return DopplerEvaluator(functions=doppler_poly_list, azimuth_reference_times=np.array([ref_times]))
 
 
 def doppler_rate_poly_from_metadata_node(
     image_generation_parameters_node: etree._Element, raster_info: RasterInfo
-) -> SortedPolyList:
-    """Creating a SortedPolyList Arepytools doppler centroid rate polynomial wrapper from safe xml node.
+) -> DopplerEvaluator:
+    """Creating a DopplerEvaluator doppler rate vector polynomial wrapper from metadata.
 
     Parameters
     ----------
@@ -547,10 +533,9 @@ def doppler_rate_poly_from_metadata_node(
 
     Returns
     -------
-    SortedPolyList
-        SortedPolyList wrapper on DopplerCentroidVector metadata object
+    DopplerEvaluator
+        DopplerEvaluator dataclass for Doppler Rate polynomial
     """
-
     coeff_raw = [
         [float(c) for c in cc.text.split()]
         for cc in image_generation_parameters_node.findall("DopplerRateValues/DopplerRateValuesCoefficients")
@@ -559,30 +544,21 @@ def doppler_rate_poly_from_metadata_node(
         [PreciseDateTime.fromisoformat(t) for t in tt.text.split()]
         for tt in image_generation_parameters_node.findall("DopplerRateValues/DopplerRateReferenceTime")
     ]
-    coefficients = [
-        [
-            c[0],
-            c[1] / raster_info.samples.step,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-        ]
-        for c in coeff_raw
-    ]
-    coefficients_max_num = np.amin(np.array([len(coefficients[0]) - 2, len(coeff_raw[0])]))
-    for index, _ in enumerate(coefficients):
-        for idx in range(2, coefficients_max_num):
-            coefficients[index][idx + 2] = coeff_raw[index][idx] / (raster_info.samples.step**idx)
+    coefficients = [[cc / raster_info.samples_step**cc_id for cc_id, cc in enumerate(c)] for c in coeff_raw]
 
-    doppler_rates = [
-        DopplerRate(i_ref_az=ref_times[c][0], i_ref_rg=raster_info.samples.start, i_coefficients=coefficients[c])
+    doppler_poly_list = [
+        ConversionFunction(
+            azimuth_reference_time=ref_times[c][0],
+            function=coefficients[c],
+            origin=raster_info.samples.start,
+        )
         for c in range(len(coefficients))
     ]
 
-    return create_sorted_poly_list(poly2d_vector=DopplerRateVector(doppler_rates))
+    return DopplerEvaluator(
+        functions=doppler_poly_list,
+        azimuth_reference_times=np.array([c.azimuth_reference_time for c in doppler_poly_list]),
+    )
 
 
 def coordinates_conversions_from_metadata(
@@ -787,8 +763,8 @@ class EOS04ChannelMetadata:
     dataset_info: DatasetInfo
     swath_info: SwathInfo
     sampling_constants: SARSamplingFrequencies
-    doppler_centroid_poly: SortedPolyList
-    doppler_rate_poly: SortedPolyList
+    doppler_centroid_poly: DopplerEvaluator
+    doppler_rate_poly: DopplerEvaluator
     pulse: PulseInfo
     coordinate_conversions: CoordinatesConversions
     state_vectors: StateVectors

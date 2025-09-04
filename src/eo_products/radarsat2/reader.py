@@ -15,7 +15,7 @@ import zarr
 from lxml import etree
 from tifffile import imread
 
-import eo_products.radarsat.utilities as support
+import eo_products.radarsat2.utilities as support
 from eo_products.common.utilities import SARRadiometricQuantity
 
 

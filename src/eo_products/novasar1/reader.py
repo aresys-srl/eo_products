@@ -15,7 +15,7 @@ import zarr
 from lxml import etree
 from tifffile import imread
 
-import eo_products.novasar.utilities as support
+import eo_products.novasar1.utilities as support
 from eo_products.common.utilities import SARRadiometricQuantity
 
 
