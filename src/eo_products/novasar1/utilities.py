@@ -485,16 +485,16 @@ def doppler_centroid_poly_from_metadata_node(
     """
 
     coeff_raw = [float(c) for c in image_generation_parameters_node.find("DopplerCentroid").text.split()]
-    coefficients = [c / raster_info.samples_step**c_id for c_id, c in enumerate(coeff_raw)]
+    coefficients = [c / raster_info.samples.step**c_id for c_id, c in enumerate(coeff_raw)]
     doppler_poly_list = [
         ConversionFunction(
-            azimuth_reference_time=raster_info.lines_start,
+            azimuth_reference_time=raster_info.lines.start,
             origin=raster_info.samples.start,
             function=Polynomial(coefficients),
         )
     ]
 
-    return DopplerEvaluator(functions=doppler_poly_list, azimuth_reference_times=np.array([raster_info.lines_start]))
+    return DopplerEvaluator(functions=doppler_poly_list, azimuth_reference_times=np.array([raster_info.lines.start]))
 
 
 def coordinates_conversions_from_metadata(

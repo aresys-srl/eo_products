@@ -505,7 +505,7 @@ def doppler_centroid_poly_from_metadata_node(
         PreciseDateTime.fromisoformat(tt.text)
         for tt in image_generation_parameters_node.findall("DopplerCentroid/TimeOfDopplerCentroidEstimate")
     ]
-    coefficients = [[cc / raster_info.samples_step**cc_id for cc_id, cc in enumerate(c)] for c in coeff_raw]
+    coefficients = [[cc / raster_info.samples.step**cc_id for cc_id, cc in enumerate(c)] for c in coeff_raw]
 
     doppler_poly_list = [
         ConversionFunction(
@@ -544,7 +544,7 @@ def doppler_rate_poly_from_metadata_node(
         [PreciseDateTime.fromisoformat(t) for t in tt.text.split()]
         for tt in image_generation_parameters_node.findall("DopplerRateValues/DopplerRateReferenceTime")
     ]
-    coefficients = [[cc / raster_info.samples_step**cc_id for cc_id, cc in enumerate(c)] for c in coeff_raw]
+    coefficients = [[cc / raster_info.samples.step**cc_id for cc_id, cc in enumerate(c)] for c in coeff_raw]
 
     doppler_poly_list = [
         ConversionFunction(
