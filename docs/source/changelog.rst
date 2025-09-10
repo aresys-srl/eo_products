@@ -1,6 +1,11 @@
 Changelog
 =========
 
+v1.0.0.dev2
+-----------
+
+Bug fixing for SAOCOM reader.
+
 v1.0.0.dev1
 -----------
 

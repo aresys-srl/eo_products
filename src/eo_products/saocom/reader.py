@@ -37,7 +37,9 @@ def read_channel_metadata(file_path: Path | str, channel_id: str) -> support.SAO
     general_info = support.SAOCOMGeneralChannelInfo.from_metadata(node=root, channel_id=channel_id)
 
     # raster info
-    raster_info = support.raster_info_from_metadata(node=root.find("RasterInfo"))
+    raster_info, binary_ordering_mode, header_offset, row_prefix = support.raster_info_from_metadata(
+        node=root.find("RasterInfo")
+    )
 
     # burst info
     burst_info = support.burst_info_from_metadata(node=root.find("BurstInfo"), raster_info=raster_info)
@@ -80,12 +82,18 @@ def read_channel_metadata(file_path: Path | str, channel_id: str) -> support.SAO
         sampling_constants=sampling_constants,
         pulse=pulse,
         state_vectors=state_vectors,
+        binary_ordering_mode=binary_ordering_mode,
+        header_offset=header_offset,
+        row_prefix=row_prefix,
     )
 
 
 def read_channel_data(
     raster_file: str | Path,
     raster_info: RasterInfo,
+    binary_ordering_mode: str,
+    header_offset: int,
+    row_prefix: int,
     block_to_read: list[int] = None,
 ) -> np.ndarray:
     """Reading SAOCOM channel raster files with raster info.
@@ -96,6 +104,12 @@ def read_channel_data(
         Path to binary raster file to be read
     raster_info : RasterInfo
         channel raster info
+    binary_ordering_mode : str
+        binary ordering mode corresponding to the raster itself
+    header_offset : int
+        header offset of the raster file
+    row_prefix : int
+        row prefix of the raster file
     block_to_read : list[int], optional
         data block to be read, to be specified as a list of 4 integers, in the form:
             0. first line to be read
@@ -116,6 +130,9 @@ def read_channel_data(
         num_of_lines=raster_info.lines.length,
         data_type=raster_info.data_type,
         block_to_read=block_to_read,
+        binary_ordering_mode=binary_ordering_mode,
+        header_offset=header_offset,
+        row_prefix=row_prefix,
     )
 
 

@@ -129,7 +129,7 @@ def _get_conversion_polynomial(node: etree._Element, tag: str) -> list[Conversio
     ]
 
 
-def raster_info_from_metadata(node: etree._Element) -> RasterInfo:
+def raster_info_from_metadata(node: etree._Element) -> tuple[RasterInfo, str, int, int]:
     """Creating a RasterInfo metadata object from metadata file.
 
     Parameters
@@ -141,6 +141,12 @@ def raster_info_from_metadata(node: etree._Element) -> RasterInfo:
     -------
     RasterInfo
         RasterInfo metadata object
+    str
+        binary ordering mode of raster itself
+    int
+        header offset
+    int
+        row prefix
     """
 
     raster_lines = RasterInfoAxis(
@@ -156,12 +162,16 @@ def raster_info_from_metadata(node: etree._Element) -> RasterInfo:
         step_unit=node.find("SamplesStep").get("unit"),
     )
 
-    return RasterInfo(
+    raster_info = RasterInfo(
         lines=raster_lines,
         samples=raster_samples,
         data_type=node.find("CellType").text,
         raster_name=node.find("FileName").text,
     )
+    binary_ordering_mode = node.find("ByteOrder").text
+    header_offset = int(node.find("HeaderOffsetBytes").text)
+    row_prefix = int(node.find("RowPrefixBytes").text)
+    return raster_info, binary_ordering_mode, header_offset, row_prefix
 
 
 def burst_info_from_metadata(node: etree._Element, raster_info: RasterInfo) -> BurstInfo:
@@ -475,9 +485,9 @@ def read_raster(
         data_type_numpy_value = data_type_dict[data_type]
         data_type = np.dtype(data_type_numpy_value)
     else:
-        raise InvalidDataType(f"Unknown data type id: {data_type.value}")
+        raise InvalidDataType(f"Unknown data type id: {data_type}")
 
-    file_data_type = np.dtype(byte_order_dict[binary_ordering_mode.value] + data_type_numpy_value)
+    file_data_type = np.dtype(byte_order_dict[binary_ordering_mode] + data_type_numpy_value)
 
     # Compute the items to read
     if block_to_read is None:
@@ -610,6 +620,9 @@ class SAOCOMChannelMetadata:
     pulse: PulseInfo | None
     coordinate_conversions: CoordinatesConversions
     state_vectors: StateVectors
+    binary_ordering_mode: str
+    header_offset: int
+    row_prefix: int
 
 
 class SAOCOMProduct:
