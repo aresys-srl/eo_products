@@ -1,6 +1,11 @@
 Changelog
 =========
 
+v1.0.0
+------
+
+First stable version.
+
 v1.0.0.dev2
 -----------
 
