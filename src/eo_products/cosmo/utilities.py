@@ -49,8 +49,9 @@ class InvalidCOSMOProduct(RuntimeError):
 class COSMOProductType(Enum):
     """COSMO Product Types"""
 
-    SCS = "SCS"  # SLC
     DGM = "DGM"  # GRD
+    SCS_B = "SCS_B"  # SLC product with range compensation applied
+    SCS_U = "SCS_U"  # SLC product without range compensation applied
 
 
 class COSMOAcquisitionModes(Enum):
@@ -154,12 +155,22 @@ def dataset_info_from_metadata(root_attributes: h5py.AttributeManager) -> Datase
     """
     prod_type = detect_product_type(root_attributes["Product Type"].decode())
 
+    projection = "SLANT RANGE"
+    match prod_type:
+        case COSMOProductType.DGM:
+            image_type = "MULTILOOK"
+            projection = "GROUND RANGE"
+        case COSMOProductType.SCS_B:
+            image_type = "AZIMUTH FOCUSED RANGE COMPENSATED"
+        case COSMOProductType.SCS_U:
+            image_type = "AZIMUTH FOCUSED"
+
     return DatasetInfo(
         fc_hz=root_attributes["Radar Frequency"],
         acquisition_mode=detect_acquisition_mode(root_attributes["Acquisition Mode"].decode()).name,
-        image_type="MULTILOOK" if prod_type == COSMOProductType.DGM else "AZIMUTH FOCUSED RANGE COMPENSATED",
+        image_type=image_type,
         sensor_name=root_attributes["Satellite ID"].decode(),
-        projection="GROUND RANGE" if prod_type == COSMOProductType.DGM else "SLANT RANGE",
+        projection=projection,
         side_looking=root_attributes["Look Side"].decode(),
     )
 
@@ -501,7 +512,10 @@ def detect_product_type(product_type_str: str) -> COSMOProductType:
     if "DGM" in product_type_str:
         return COSMOProductType.DGM
 
-    return COSMOProductType.SCS
+    if "SCS_B" in product_type_str:
+        return COSMOProductType.SCS_B
+
+    return COSMOProductType.SCS_U
 
 
 def _get_channels_names(root: h5py.File) -> list[str]:
