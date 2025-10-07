@@ -56,7 +56,14 @@ def read_external_orbit(
         reference_frame = support.S1ReferenceFrameType.EARTH_FIXED
 
     # retrieving datetimes information
-    validity_period.find("Validity_Start").text.split("=")[-1]
+    validity_start = PreciseDateTime.fromisoformat(validity_period.find("Validity_Start").text.split("=")[-1])
+    validity_stop = PreciseDateTime.fromisoformat(validity_period.find("Validity_Stop").text.split("=")[-1])
+
+    if time_boundaries is not None:
+        if time_boundaries[0] < validity_start or time_boundaries[1] > validity_stop:
+            raise support.InvalidTimeBoundaries(
+                f"Time boundaries {time_boundaries} are out of validity period {(validity_start, validity_stop)}"
+            )
 
     # retrieving state vectors data
     state_vectors_num = int(state_vectors_list.get("count"))
@@ -85,7 +92,7 @@ def read_external_orbit(
         orbit_type = support.S1OrbitType.PRECISE
 
     if time_boundaries is None:
-        return support.S1StateVectors(
+        return StateVectors(
             num=state_vectors_num,
             time_axis=time_axis,
             positions=positions,

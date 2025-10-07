@@ -1,6 +1,14 @@
 Changelog
 =========
 
+v1.0.1
+------
+
+**Bug fixing**
+
+-  Sentinel-1: fixing bug in ``read_external_orbit`` for provided time boundaries out of orbit validity boundaries.
+-  Sentinel-1: fixing bug in ``read_external_orbit`` when returning the whole orbit.
+
 v1.0.0
 ------
 

@@ -51,6 +51,14 @@ class InvalidChannelId(RuntimeError):
     """Invalid channel number"""
 
 
+class InvalidSAFEProduct(RuntimeError):
+    """Invalid SAFE product"""
+
+
+class InvalidTimeBoundaries(RuntimeError):
+    """Invalid time boundaries with respect to validity period"""
+
+
 # camel case pattern
 _cc_pattern = re.compile(r"(?<!^)(?=[A-Z])")
 
@@ -69,10 +77,6 @@ def convert_camel2snake(text: str) -> str:
         snake_case text
     """
     return _cc_pattern.sub("_", text).lower()
-
-
-class InvalidSAFEProduct(RuntimeError):
-    """Invalid SAFE product"""
 
 
 class S1OrbitType(Enum):
