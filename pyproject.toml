@@ -13,6 +13,7 @@ dependencies = [
     "zarr",
     "h5py",
     "imagecodecs",
+    "sarpy",
 ]
 dynamic = ["version"]
 classifiers = [

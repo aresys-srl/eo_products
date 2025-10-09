@@ -4,6 +4,10 @@ Changelog
 v1.0.2
 ------
 
+**New features**
+
+-  Added support for Synspective StriX L1 products, both GRD (GeoTiff + XML) and SLC (NITF).
+
 **Bug fixing**
 
 -  Sentinel-1: fixing bug in Orbit Type determination for Sentinel-1 products.
