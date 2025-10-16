@@ -1,6 +1,13 @@
 Changelog
 =========
 
+v1.0.2
+------
+
+**Bug fixing**
+
+-  Sentinel-1: fixing bug in Orbit Type determination for Sentinel-1 products.
+
 v1.0.1
 ------
 

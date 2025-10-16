@@ -167,6 +167,7 @@ def read_channel_metadata(
 
     # orbit
     if external_orbit_path is None:
+        orbit_type = None
         if image_annotation.find("processingInformation/orbitSource").text == "Extracted":
             orbit_type = support.S1OrbitType.DOWNLINK
         elif image_annotation.find("processingInformation/orbitSource").text == "Auxiliary":
