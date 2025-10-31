@@ -7,6 +7,7 @@ v1.0.2
 **Bug fixing**
 
 -  Sentinel-1: fixing bug in Orbit Type determination for Sentinel-1 products.
+-  Sentinel-1: fixing bug in starting and stop indexes computation for Sentinel-1 External Orbit reader when providing time boundaries.
 
 v1.0.1
 ------

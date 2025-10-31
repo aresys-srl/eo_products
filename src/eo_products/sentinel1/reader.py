@@ -103,8 +103,8 @@ def read_external_orbit(
         )
 
     # cropping orbit only between provided time boundaries
-    start_index = np.where(time_axis > time_boundaries[0])[0][0]
-    stop_index = np.where(time_axis > time_boundaries[1])[0][0]
+    start_index = np.where(time_axis > time_boundaries[0])[0][0] - 1
+    stop_index = np.where(time_axis > time_boundaries[1])[0][0] + 1
     time_axis = time_axis[start_index:stop_index]
     positions = positions[start_index:stop_index]
     velocities = velocities[start_index:stop_index]
