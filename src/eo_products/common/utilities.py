@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from arepytools.geometry.orbit import Orbit
@@ -18,6 +18,8 @@ from arepytools.timing.precisedatetime import PreciseDateTime
 from numpy.polynomial import Polynomial
 from numpy.typing import ArrayLike
 from scipy.interpolate import CubicSpline
+
+LookingDirection = Literal["LEFT", "RIGHT"]
 
 
 class SARRadiometricQuantity(Enum):
@@ -216,7 +218,7 @@ class DatasetInfo:
     sensor_name: str
     image_type: str
     projection: str
-    side_looking: str
+    side_looking: LookingDirection
 
 
 @dataclass
