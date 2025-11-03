@@ -439,6 +439,7 @@ def read_raster(
         binary ordering mode corresponding to the raster itself, by default LITTLEENDIAN
     block_to_read : list[int] | None, optional
         data block to be read, to be specified as a list of 4 integers, in the form:
+
             0. first line to be read
             1. first sample to be read
             2. total number of lines to be read

@@ -130,12 +130,13 @@ def read_channel_data(
         Path to GeoTiff .tif or HDF5 .h5 file
     block_to_read : list[int] | None, optional
         data block to be read, to be specified as a list of 4 integers, in the form:
+
             0. first line to be read
             1. first sample to be read
             2. total number of lines to be read
             3. total number of samples to be read
 
-        by default None
+        if None, the whole raster is read, by default None
     scaling_conversion : float, optional
         scaling conversion to be applied to the data read
 

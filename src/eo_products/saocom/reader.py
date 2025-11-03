@@ -110,14 +110,15 @@ def read_channel_data(
         header offset of the raster file
     row_prefix : int
         row prefix of the raster file
-    block_to_read : list[int], optional
+    block_to_read : list[int] | None, optional
         data block to be read, to be specified as a list of 4 integers, in the form:
+
             0. first line to be read
             1. first sample to be read
             2. total number of lines to be read
             3. total number of samples to be read
 
-        by default None
+        if None, the whole raster is read, by default None
 
     Returns
     -------
