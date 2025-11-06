@@ -1,6 +1,13 @@
 Changelog
 =========
 
+v1.0.3
+------
+
+**Other changes**
+
+- Radarsat-2: improved support for reading Radarsat-2 products acquisition modes and proper conversion to SAR standard modes.
+
 v1.0.2
 ------
 

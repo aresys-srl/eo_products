@@ -38,8 +38,9 @@ def read_product_metadata(
     """
     xml_path = Path(xml_path)
 
-    _, product_type, channels_list, _ = support.get_basic_info_from_metadata(metadata_path=xml_path)
-    acquisition_mode = support.get_acquisition_mode_from_product_type(prod_type=product_type)
+    _, product_type, channels_list, _, beam_mode = support.get_basic_info_from_metadata(metadata_path=xml_path)
+    # acquisition_mode = support.get_acquisition_mode_from_product_type(prod_type=product_type)
+    acquisition_mode = support.get_acquisition_mode(beam_mode)
     projection = support.get_projection_from_product_type(prod_type=product_type)
     out_dict = dict.fromkeys(channels_list)
 

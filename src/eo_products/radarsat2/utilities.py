@@ -72,6 +72,25 @@ class RADARSATAcquisitionModes(Enum):
     SPOTLIGHT = auto()
 
 
+def get_acquisition_mode(beam_mode: str) -> RADARSATAcquisitionModes:
+    """
+    Parameters
+    ----------
+    beam_mode : str
+        RS2 beam mode mnemomic
+
+    Returns
+    -------
+    RADARSATAcquisitionModes
+        acquisition mode among STRIPMAP, SCANSAR, SPOTLIGHT
+    """
+    if "SCN" in beam_mode or "SCW" in beam_mode:
+        return RADARSATAcquisitionModes.SCANSAR
+    if "SLA" in beam_mode:
+        return RADARSATAcquisitionModes.SPOTLIGHT
+    return RADARSATAcquisitionModes.STRIPMAP
+
+
 class InvalidRADARSATProduct(RuntimeError):
     """Invalid RADARSAT-2 product"""
 
@@ -673,7 +692,11 @@ class RADARSATGeneralChannelInfo:
                 namespaces=namespace,
             )[0].text.upper()
         )
-        mode = get_acquisition_mode_from_product_type(prod_type=prod_type)
+        beam_mode = root.xpath(
+            ".//base:sourceAttributes/base:beamModeMnemonic",
+            namespaces=namespace,
+        )[0].text.upper()
+        mode = get_acquisition_mode(beam_mode)
         if mode == RADARSATAcquisitionModes.SCANSAR:
             mode_std = StandardSARAcquisitionMode.SCANSAR
         elif mode == RADARSATAcquisitionModes.STRIPMAP:
@@ -727,7 +750,7 @@ class RADARSATChannelMetadata:
 
 def get_basic_info_from_metadata(
     metadata_path: str | Path,
-) -> tuple[PreciseDateTime, RADARSATProductType, list[str], tuple[float, float, float, float]]:
+) -> tuple[PreciseDateTime, RADARSATProductType, list[str], tuple[float, float, float, float], str]:
     """Recovering acquisition time and list of channels.
 
     Parameters
@@ -745,6 +768,8 @@ def get_basic_info_from_metadata(
         list of channels ids
     tuple[float, float, float, float]
         scene footprint [min lat, max lat, min lon, max lon]
+    str
+        beam mode
     """
     metadata_path = Path(metadata_path)
     mtd = metadata_path.read_text(encoding="UTF-8")
@@ -755,11 +780,13 @@ def get_basic_info_from_metadata(
     pols_re = re.compile("(?<=<polarizations>).*(?=</polarizations>)")
     footprint_lat_re = re.compile('(?<=<latitude units="deg">).*(?=</latitude>)')
     footprint_lon_re = re.compile('(?<=<longitude units="deg">).*(?=</longitude>)')
+    beam_mode_re = re.compile("(?<=<beamModeMnemonic>).*(?=</beamModeMnemonic>)")
 
     # info extraction
     acq_time = acq_time_re.findall(mtd)[0]
     acq_type = type_re.findall(mtd)[0].lower()
     acq_pols = pols_re.findall(mtd)[0].lower()
+    beam_mode = beam_mode_re.findall(mtd)[0].lower()
 
     # generating channels names
     pol_list = acq_pols.split()
@@ -770,28 +797,13 @@ def get_basic_info_from_metadata(
     footprint_lon = [float(f) for f in footprint_lon_re.findall(mtd)]
     footprint = (min(footprint_lat), max(footprint_lat), min(footprint_lon), max(footprint_lon))
 
-    return PreciseDateTime.fromisoformat(acq_time), RADARSATProductType(acq_type.upper()), channels_list, footprint
-
-
-def get_acquisition_mode_from_product_type(prod_type: RADARSATProductType) -> RADARSATAcquisitionModes:
-    """Get product acquisition mode from product type.
-
-    Parameters
-    ----------
-    prod_type : RADARSATProductType
-        product type
-
-    Returns
-    -------
-    RADARSATAcquisitionModes
-        product acquisition mode
-    """
-    # FIXME: spotlight case needed!
-    # TODO: check when this is SPOTLIGHT
-    if prod_type == RADARSATProductType.SLC:
-        return RADARSATAcquisitionModes.STRIPMAP
-
-    return RADARSATAcquisitionModes.SCANSAR
+    return (
+        PreciseDateTime.fromisoformat(acq_time),
+        RADARSATProductType(acq_type.upper()),
+        channels_list,
+        footprint,
+        beam_mode,
+    )
 
 
 def get_projection_from_product_type(prod_type: RADARSATProductType) -> SARProjection:
@@ -827,7 +839,7 @@ class RADARSATProduct:
         self._product_path = Path(path)
         self._product_name = self._product_path.name
         self._metadata_path = self._product_path.joinpath(_METADATA_FILE)
-        self._acq_time, self._product_type, self._channel_list_by_swath_id, self._footprint = (
+        self._acq_time, self._product_type, self._channel_list_by_swath_id, self._footprint, self._beam_mode = (
             get_basic_info_from_metadata(metadata_path=self._metadata_path)
         )
         self._channels_number = len(self._channel_list_by_swath_id)
