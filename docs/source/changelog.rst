@@ -4,6 +4,10 @@ Changelog
 v1.0.3
 ------
 
+**New features**
+
+- COSMO: adding support for reading Second Generation COSMO products.
+
 **Other changes**
 
 - Radarsat-2: improved support for reading Radarsat-2 products acquisition modes and proper conversion to SAR standard modes.

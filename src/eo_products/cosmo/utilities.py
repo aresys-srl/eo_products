@@ -46,6 +46,13 @@ class InvalidCOSMOProduct(RuntimeError):
     """Invalid COSMO product"""
 
 
+class COSMOGeneration(Enum):
+    """COSMO Generation"""
+
+    FIRST = 1
+    SECOND = 2
+
+
 class COSMOProductType(Enum):
     """COSMO Product Types"""
 
@@ -62,21 +69,15 @@ class COSMOAcquisitionModes(Enum):
     SCANSAR = auto()  # (WideRegion, HugeRegion)
 
 
-def raster_info_from_metadata(
-    root_attributes: h5py.AttributeManager, raster_attributes: h5py.AttributeManager, lines: int, samples: int
-) -> RasterInfo:
+def raster_info_from_metadata(root: h5py.File, channel_id: str) -> RasterInfo:
     """Creating a RasterInfo metadata object from metadata file.
 
     Parameters
     ----------
-    root_attributes : h5py.AttributeManager
-        metadata root attributes
-    raster_attributes : h5py.AttributeManager
-        metadata raster attributes
-    lines : int
-        number of azimuth lines
-    samples : int
-        number of range samples
+    root : h5py.File
+        root object
+    channel_id : str
+        channel id
 
     Returns
     -------
@@ -84,36 +85,38 @@ def raster_info_from_metadata(
         RasterInfo metadata object
     """
 
-    product_type = detect_product_type(root_attributes["Product Type"].decode())
-    # assuming SLC only
-    file_name = root_attributes["Product Filename"].decode().strip(_DATA_EXTENSION)
+    product_name = Path(root.filename).name.replace(_DATA_EXTENSION, "")
+    product_type = detect_product_type(root.attrs["Product Type"].decode())
+    # Raster can have third axis if data is complex, in that case is real + imaginary
+    raster = get_raster(root, channel_id)
+    lines, samples, *_ = raster.shape
 
     # lines
     raster_lines = RasterInfoAxis(
         length=lines,
         start=(
-            PreciseDateTime.from_utc_string(root_attributes["Reference UTC"].decode())
-            + raster_attributes["Zero Doppler Azimuth First Time"]
+            PreciseDateTime.from_utc_string(root.attrs["Reference UTC"].decode())
+            + raster.attrs["Zero Doppler Azimuth First Time"]
         ),
-        step=raster_attributes["Line Time Interval"],
+        step=raster.attrs["Line Time Interval"],
         step_unit="s",
     )
 
     # samples
     if product_type == COSMOProductType.DGM:
         samples_start = 0
-        samples_step = raster_attributes["Column Spacing"]
+        samples_step = raster.attrs["Column Spacing"]
         samples_step_unit = "m"
         celltype = "FLOAT32"
     else:
-        samples_start = raster_attributes["Zero Doppler Range First Time"]
-        samples_step = raster_attributes["Column Time Interval"]
+        samples_start = raster.attrs["Zero Doppler Range First Time"]
+        samples_step = raster.attrs["Column Time Interval"]
         samples_step_unit = "s"
         celltype = "FLOAT_COMPLEX"
 
     raster_samples = RasterInfoAxis(length=samples, start=samples_start, step=samples_step, step_unit=samples_step_unit)
 
-    return RasterInfo(lines=raster_lines, samples=raster_samples, data_type=celltype, raster_name=file_name)
+    return RasterInfo(lines=raster_lines, samples=raster_samples, data_type=celltype, raster_name=product_name)
 
 
 def burst_info_from_metadata(raster_info: RasterInfo, range_ref_time: float) -> BurstInfo:
@@ -175,13 +178,13 @@ def dataset_info_from_metadata(root_attributes: h5py.AttributeManager) -> Datase
     )
 
 
-def swath_info_from_metadata(swath_group: h5py.Group, channel_id: str) -> SwathInfo:
+def swath_info_from_metadata(root: h5py.File, channel_id: str) -> SwathInfo:
     """Creating a SwathInfo metadata object from metadata file.
 
     Parameters
     ----------
-    swath_group : h5py.Group
-        metadata swath group
+    root : h5py.File
+        root object
     channel_id : str
         channel id
 
@@ -190,13 +193,18 @@ def swath_info_from_metadata(swath_group: h5py.Group, channel_id: str) -> SwathI
     SwathInfo
         SwathInfo metadata object
     """
-
+    swath_group = root[channel_id.split("_")[0]]
     rank = swath_group.attrs["Rank"]
     acquisition_prf = swath_group.attrs["PRF"]
+    gen = get_cosmo_generation(root)
 
-    # Pick steering  from first burst
-    azimuth_steering_deg = swath_group["B001"].attrs["Azimuth Steering"]
-    line_changes = swath_group["B001"].attrs["Azimuth Ramp Code Change Lines"]
+    # Pick steering from first burst
+    if gen == COSMOGeneration.FIRST:
+        azimuth_steering_deg = swath_group["B001"].attrs["Azimuth Steering"]
+        line_changes = swath_group["B001"].attrs["Azimuth Ramp Code Change Lines"]
+    else:
+        azimuth_steering_deg = swath_group["B0001"].attrs["Azimuth Steering"]
+        line_changes = swath_group["B0001"].attrs["Azimuth Ramp Code Change Lines"]
 
     if len(azimuth_steering_deg) > 1:
         steering_rate_rad_sec = np.deg2rad(
@@ -229,7 +237,7 @@ def state_vectors_from_metadata(root_attributes: h5py.AttributeManager) -> State
     StateVectors
         orbit's state vectors dataclass
     """
-    numerosity = root_attributes["Number of State Vectors"]
+    numerosity = root_attributes["State Vectors Times"].size
     positions = root_attributes["ECEF Satellite Position"]
     velocities = root_attributes["ECEF Satellite Velocity"]
     time_axis = root_attributes["State Vectors Times"] + PreciseDateTime.from_utc_string(
@@ -308,25 +316,33 @@ def pulse_info_from_metadata(swath_attributes: h5py.AttributeManager) -> PulseIn
     )
 
 
-def doppler_centroid_poly_from_metadata(root_attributes: h5py.AttributeManager) -> DopplerEvaluator:
+def doppler_centroid_poly_from_metadata(root: h5py.File, channel_id: str) -> DopplerEvaluator:
     """Creating a DopplerEvaluator doppler centroid polynomial wrapper from metadata.
 
     Parameters
     ----------
-    root_attributes : h5py.AttributeManager
-        metadata root attributes
+    root : h5py.File
+        root object
+    channel_id : str
+        channel id
 
     Returns
     -------
     DopplerEvaluator
         DopplerEvaluator dataclass for Doppler Centroid polynomial
     """
-    doppler_rate_coeffs = root_attributes["Centroid vs Range Time Polynomial"]
-    ref_az_time = root_attributes["Azimuth Polynomial Reference Time"] + PreciseDateTime.from_utc_string(
-        root_attributes["Reference UTC"].decode()
-    )
-    ref_rng_time = root_attributes["Range Polynomial Reference Time"]
+    gen = get_cosmo_generation(root)
+    if gen == COSMOGeneration.FIRST:
+        attrs = root.attrs
+        doppler_rate_coeffs = attrs["Centroid vs Range Time Polynomial"]
+    else:
+        attrs = root[channel_id.split("_")[0]].attrs
+        doppler_rate_coeffs = attrs["Doppler Centroid vs Range Time Polynomial"]
 
+    ref_az_time = attrs["Azimuth Polynomial Reference Time"] + PreciseDateTime.from_utc_string(
+        root.attrs["Reference UTC"].decode()
+    )
+    ref_rng_time = attrs["Range Polynomial Reference Time"]
     # assembling list of polynomials
     doppler_poly_list = [
         ConversionFunction(
@@ -339,24 +355,31 @@ def doppler_centroid_poly_from_metadata(root_attributes: h5py.AttributeManager) 
     return DopplerEvaluator(functions=doppler_poly_list, azimuth_reference_times=np.array([ref_az_time]))
 
 
-def doppler_rate_poly_from_metadata(root_attributes: h5py.AttributeManager) -> DopplerEvaluator:
+def doppler_rate_poly_from_metadata(root: h5py.File, channel_id: str) -> DopplerEvaluator:
     """Creating a DopplerEvaluator doppler rate vector polynomial wrapper from metadata.
 
     Parameters
     ----------
-    root_attributes : h5py.AttributeManager
-        metadata root attributes
+    root : h5py.File
+        root object
+    channel_id : str
+        channel id
 
     Returns
     -------
     DopplerEvaluator
         DopplerEvaluator dataclass for Doppler Rate polynomial
     """
-    doppler_rate_coeffs = root_attributes["Doppler Rate vs Range Time Polynomial"]
-    ref_az_time = root_attributes["Azimuth Polynomial Reference Time"] + PreciseDateTime.from_utc_string(
-        root_attributes["Reference UTC"].decode()
+    gen = get_cosmo_generation(root)
+    if gen == COSMOGeneration.FIRST:
+        attrs = root.attrs
+    else:
+        attrs = root[channel_id.split("_")[0]].attrs
+    doppler_rate_coeffs = attrs["Doppler Rate vs Range Time Polynomial"]
+    ref_az_time = attrs["Azimuth Polynomial Reference Time"] + PreciseDateTime.from_utc_string(
+        root.attrs["Reference UTC"].decode()
     )
-    ref_rng_time = root_attributes["Range Polynomial Reference Time"]
+    ref_rng_time = attrs["Range Polynomial Reference Time"]
 
     # assembling list of polynomials
     doppler_poly_list = [
@@ -447,28 +470,39 @@ def coordinates_conversions_from_metadata(
     )
 
 
-def compute_calibration_factor(root_attributes: h5py.AttributeManager, calibration_constant: float) -> float:
+def compute_calibration_factor(root: h5py.File, channel_id: str) -> float:
     """Computing calibration factor to be applied to the image raster to get Sigma Nought radiometric quantity.
 
     Parameters
     ----------
-    root_attributes : h5py.AttributeManager
-        metadata root attributes
-    calibration_constant : float
-        calibration constant
+    root : h5py.File
+        root object
+    channel_id : str
+        channel id
 
     Returns
     -------
     float
         calibration factor
     """
-    factor = 1 / (root_attributes["Rescaling Factor"] ** 2)
-    if root_attributes["Range Spreading Loss Compensation Geometry"].decode() != "NONE":
-        factor *= root_attributes["Reference Slant Range"] ** (2 * root_attributes["Reference Slant Range Exponent"])
-    if root_attributes["Incidence Angle Compensation Geometry"].decode() != "NONE":
-        factor *= np.sin(np.deg2rad(root_attributes["Reference Incidence Angle"]))
-    if root_attributes["Calibration Constant Compensation Flag"] == 0:
-        factor *= 1 / calibration_constant
+    root_attributes = root.attrs
+    raster_attributes = get_raster(root, channel_id).attrs
+    swath_attributes = root[channel_id.split("_")[0]].attrs
+    calibration_constant = swath_attributes["Calibration Constant"]
+    gen = get_cosmo_generation(root)
+    if gen == COSMOGeneration.FIRST:
+        factor = 1 / (root_attributes["Rescaling Factor"] ** 2)
+        if root_attributes["Range Spreading Loss Compensation Geometry"].decode() != "NONE":
+            factor *= root_attributes["Reference Slant Range"] ** (
+                2 * root_attributes["Reference Slant Range Exponent"]
+            )
+        if root_attributes["Incidence Angle Compensation Geometry"].decode() != "NONE":
+            factor *= np.sin(np.deg2rad(root_attributes["Reference Incidence Angle"]))
+        if root_attributes["Calibration Constant Compensation Flag"] == 0:
+            factor *= 1 / calibration_constant
+    else:
+        # TODO: check if this is calibrated
+        factor = 1 / (raster_attributes["Rescaling Factor"] ** 2)
 
     return np.sqrt(factor)
 
@@ -486,7 +520,7 @@ def detect_acquisition_mode(acq_mode_str: str) -> COSMOAcquisitionModes:
     COSMOAcquisitionModes
         COSMO Acquisition Mode enum
     """
-    if "region" in acq_mode_str.lower():  # Expected HUGEREGION or WIDEREGION
+    if "region" in acq_mode_str.lower() or "scansar" in acq_mode_str.lower():  # Expected HUGEREGION or WIDEREGION
         return COSMOAcquisitionModes.SCANSAR
 
     if "spotlight" in acq_mode_str.lower():
@@ -532,7 +566,10 @@ def _get_channels_names(root: h5py.File) -> list[str]:
         list of channel ids as "swath_polarization"
     """
     swaths = [s for s in root.keys() if "S0" in s]
-    polarizations = [root[s].attrs["Polarisation"].decode() for s in swaths]
+    polarizations = _get_polarizations_str(root)
+
+    if len(polarizations) == 1 and len(swaths) > 1:
+        polarizations = polarizations * len(swaths)
 
     return ["_".join([s, p]) for s, p in list(zip(swaths, polarizations, strict=True))]
 
@@ -564,7 +601,27 @@ def _get_footprint(rasters: list[h5py.Dataset]) -> list[float, float, float, flo
     min_lat, min_lon = np.min(np.min(footprint, axis=1), axis=0)
     max_lat, max_lon = np.max(np.max(footprint, axis=1), axis=0)
 
-    return [min_lat, max_lat, min_lon, max_lon]
+    return [float(min_lat), float(max_lat), float(min_lon), float(max_lon)]
+
+
+def _get_polarizations_str(root: h5py.Filer) -> list[str]:
+    """Get polarizations values from product.
+
+    Parameters
+    ----------
+    root : h5py.Filer
+        root object
+
+    Returns
+    -------
+    list[str]
+        list of polarizations strings
+    """
+    gen = get_cosmo_generation(root)
+    swaths = [s for s in root.keys() if "S0" in s]
+    if gen == COSMOGeneration.FIRST:
+        return [root[s].attrs["Polarisation"].decode() for s in swaths]
+    return [root.attrs["Polarization"].decode()]
 
 
 def get_raster(root: h5py.File, channel_id: str) -> h5py.Dataset:
@@ -586,11 +643,32 @@ def get_raster(root: h5py.File, channel_id: str) -> h5py.Dataset:
     # pick the SBI associated to swath
     product_type = detect_product_type(root.attrs["Product Type"].decode())
     acquisition_mode = detect_acquisition_mode(root.attrs["Acquisition Mode"].decode())
+    gen = get_cosmo_generation(root)
 
     if product_type == COSMOProductType.DGM and acquisition_mode == COSMOAcquisitionModes.SCANSAR:
         return root["MBI"]
 
-    return root[channel_id.split("_")[0]]["SBI"]
+    if gen == COSMOGeneration.FIRST:
+        return root[channel_id.split("_")[0]]["SBI"]
+    return root[channel_id.split("_")[0]]["IMG"]
+
+
+def get_cosmo_generation(root: h5py.File) -> COSMOGeneration:
+    """Get COSMO product generation.
+
+    Parameters
+    ----------
+    root : h5py.File
+        root object
+
+    Returns
+    -------
+    COSMOGeneration
+        COSMO product generation
+    """
+    if root.attrs["Mission ID"].decode() == "CSG":
+        return COSMOGeneration.SECOND
+    return COSMOGeneration.FIRST
 
 
 @dataclass
@@ -610,18 +688,14 @@ class COSMOGeneralChannelInfo:
     acq_start_time: PreciseDateTime
     acq_stop_time: PreciseDateTime
 
-    @staticmethod
-    def from_metadata(
-        root_attributes: h5py.AttributeManager, swath_attributes: h5py.AttributeManager, channel_id: str
-    ) -> COSMOGeneralChannelInfo:
+    @classmethod
+    def from_metadata(cls, root: h5py.File, channel_id: str) -> COSMOGeneralChannelInfo:
         """Generating COSMOGeneralChannelInfo object directly from metadata.
 
         Parameters
         ----------
-        root_attributes : h5py.AttributeManager
-            metadata root attributes
-        swath_attributes : h5py.AttributeManager
-            metadata swath attributes
+        root : h5py.File
+            root object
         channel_id : str
             channel id
 
@@ -630,29 +704,30 @@ class COSMOGeneralChannelInfo:
         COSMOGeneralChannelInfo
             general channel info dataclass
         """
-        product_level = detect_product_type(root_attributes["Product Type"].decode())
-        acq_mode = detect_acquisition_mode(root_attributes["Acquisition Mode"].decode())
+        product_name = Path(root.filename).name.replace(_DATA_EXTENSION, "")
+        product_level = detect_product_type(root.attrs["Product Type"].decode())
+        acq_mode = detect_acquisition_mode(root.attrs["Acquisition Mode"].decode())
         if acq_mode == COSMOAcquisitionModes.SCANSAR:
             acq_mode_std = StandardSARAcquisitionMode.SCANSAR
         elif acq_mode == COSMOAcquisitionModes.STRIPMAP:
             acq_mode_std = StandardSARAcquisitionMode.STRIPMAP
         else:
             acq_mode_std = StandardSARAcquisitionMode.SPOTLIGHT
-        return COSMOGeneralChannelInfo(
-            product_name=root_attributes["Product Filename"].decode().strip(_DATA_EXTENSION),
+        return cls(
+            product_name=product_name,
             channel_id=channel_id,
             swath=channel_id.split("_")[0],
             product_level=product_level,
-            polarization=SARPolarization[swath_attributes["Polarisation"].decode()],
+            polarization=SARPolarization[channel_id.split("_")[-1].upper()],
             projection=(
                 SARProjection.GROUND_RANGE if product_level == COSMOProductType.DGM else SARProjection.SLANT_RANGE
             ),
             acquisition_mode=acq_mode,
             acquisition_mode_std=acq_mode_std,
-            orbit_direction=OrbitDirection[root_attributes["Orbit Direction"].decode()],
-            signal_frequency=root_attributes["Radar Frequency"],
-            acq_start_time=PreciseDateTime.from_utc_string(root_attributes["Scene Sensing Start UTC"].decode()),
-            acq_stop_time=PreciseDateTime.from_utc_string(root_attributes["Scene Sensing Stop UTC"].decode()),
+            orbit_direction=OrbitDirection[root.attrs["Orbit Direction"].decode()],
+            signal_frequency=root.attrs["Radar Frequency"],
+            acq_start_time=PreciseDateTime.from_utc_string(root.attrs["Scene Sensing Start UTC"].decode()),
+            acq_stop_time=PreciseDateTime.from_utc_string(root.attrs["Scene Sensing Stop UTC"].decode()),
         )
 
 
@@ -690,6 +765,7 @@ class COSMOProduct:
         self._product_path = Path(path)
         self._product_name = self._product_path.name
         root = h5py.File(path)
+        self._generation = get_cosmo_generation(root)
         product_type = detect_product_type(root.attrs["Product Type"].decode())
         self._acq_time = PreciseDateTime.from_utc_string(root.attrs["Scene Sensing Start UTC"].decode())
         channels_list = _get_channels_names(root)
@@ -703,6 +779,11 @@ class COSMOProduct:
         rasters = [get_raster(root, channel_id) for channel_id in channels_list]
         self._footprint = _get_footprint(rasters)
         root.close()
+
+    @property
+    def generation(self) -> COSMOGeneration:
+        """COSMO product generation"""
+        return self._generation
 
     @property
     def acquisition_time(self) -> PreciseDateTime:

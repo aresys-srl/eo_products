@@ -37,19 +37,13 @@ def read_channel_metadata(file_path: str | Path, channel_id: str) -> support.COS
     swath = root[channel_id.split("_")[0]]
     swath_attributes = swath.attrs
     raster = support.get_raster(root, channel_id)
-    # Raster can have third axis if data is complex, in that case is real + imaginary
-    lines, samples, *_ = raster.shape
     raster_attributes = raster.attrs
 
     # general info
-    general_info = support.COSMOGeneralChannelInfo.from_metadata(
-        root_attributes=root_attributes, swath_attributes=swath_attributes, channel_id=channel_id
-    )
+    general_info = support.COSMOGeneralChannelInfo.from_metadata(root=root, channel_id=channel_id)
 
     # creating raster info
-    raster_info = support.raster_info_from_metadata(
-        root_attributes=root_attributes, raster_attributes=raster_attributes, lines=lines, samples=samples
-    )
+    raster_info = support.raster_info_from_metadata(root=root, channel_id=channel_id)
 
     # dataset info
     dataset_info = support.dataset_info_from_metadata(root_attributes=root_attributes)
@@ -67,12 +61,10 @@ def read_channel_metadata(file_path: str | Path, channel_id: str) -> support.COS
     )
 
     # calibration factor
-    calibration_factor = support.compute_calibration_factor(
-        root_attributes=root_attributes, calibration_constant=swath_attributes["Calibration Constant"]
-    )
+    calibration_factor = support.compute_calibration_factor(root=root, channel_id=channel_id)
 
     # swath info
-    swath_info = support.swath_info_from_metadata(swath_group=swath, channel_id=channel_id)
+    swath_info = support.swath_info_from_metadata(root=root, channel_id=channel_id)
 
     # burst info
     burst_info = support.burst_info_from_metadata(
@@ -80,8 +72,8 @@ def read_channel_metadata(file_path: str | Path, channel_id: str) -> support.COS
     )
 
     # doppler polynomials
-    doppler_rate_poly = support.doppler_rate_poly_from_metadata(root_attributes=root_attributes)
-    doppler_centroid_poly = support.doppler_centroid_poly_from_metadata(root_attributes=root_attributes)
+    doppler_rate_poly = support.doppler_rate_poly_from_metadata(root=root, channel_id=channel_id)
+    doppler_centroid_poly = support.doppler_centroid_poly_from_metadata(root=root, channel_id=channel_id)
 
     # coordinate conversions
     range_step_m = (
@@ -122,12 +114,12 @@ def read_channel_data(
     block_to_read: list[int] | None = None,
     scaling_conversion: float = 1,
 ):
-    """Reading ICEYE data file. It can be a GeoTiff .tif file (for GRD products) or an HDF5 .h5 file (for SLC).
+    """Reading COSMO data file as HDF5 .h5 file.
 
     Parameters
     ----------
     raster_file : str | Path
-        Path to GeoTiff .tif or HDF5 .h5 file
+        Path to HDF5 .h5 file
     block_to_read : list[int] | None, optional
         data block to be read, to be specified as a list of 4 integers, in the form:
 
