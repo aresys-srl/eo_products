@@ -479,7 +479,7 @@ def sampling_constants_from_metadata(root: str | SICDType, lines_step: float) ->
     )
 
 
-def doppler_centroid_poly_from_metadata_node(root: str | SICDType, raster_info: RasterInfo) -> DopplerEvaluator:
+def doppler_centroid_poly_from_metadata_node(root: str | SICDType, raster_info: RasterInfo) -> DopplerEvaluator | None:
     """Creating a DopplerEvaluator doppler centroid polynomial wrapper from metadata.
 
     Parameters
@@ -491,22 +491,30 @@ def doppler_centroid_poly_from_metadata_node(root: str | SICDType, raster_info: 
 
     Returns
     -------
-    DopplerEvaluator
+    DopplerEvaluator | None
         DopplerEvaluator dataclass for Doppler Centroid polynomial
     """
-    # TODO: forcing zero here for now, but should be read from metadata
-    doppler_poly_list = [
-        ConversionFunction(
-            azimuth_reference_time=raster_info.lines.start,
-            origin=raster_info.samples.start,
-            function=Polynomial([0.01]),
+    if isinstance(root, SICDType):
+        mtd = root.to_dict()
+        coeffs = mtd["RMA"]["INCA"]["DopCentroidPoly"]["Coefs"][0]
+        # NOTE: considering Doppler Centroid as a constant, evaluated at mid azimuth, not varying in range
+        doppler_centroid = Polynomial(coeffs)(raster_info.lines.length // 2)
+        doppler_poly_list = [
+            ConversionFunction(
+                azimuth_reference_time=raster_info.lines.start,
+                origin=raster_info.samples.start,
+                function=Polynomial([doppler_centroid]),
+            )
+        ]
+        return DopplerEvaluator(
+            functions=doppler_poly_list, azimuth_reference_times=np.array([raster_info.lines.start])
         )
-    ]
-
-    return DopplerEvaluator(functions=doppler_poly_list, azimuth_reference_times=np.array([raster_info.lines.start]))
+    return None
 
 
-def doppler_rate_poly_from_metadata(root: str | SICDType, raster_info: RasterInfo) -> DopplerEvaluator:
+def doppler_rate_poly_from_metadata(
+    root: str | SICDType, raster_info: RasterInfo, orbit: Orbit
+) -> DopplerEvaluator | None:
     """Creating a DopplerEvaluator doppler rate vector polynomial wrapper from metadata.
 
     Parameters
@@ -515,6 +523,8 @@ def doppler_rate_poly_from_metadata(root: str | SICDType, raster_info: RasterInf
         metadata root object
     raster_info : RasterInfo
         channel raster info
+    orbit : Orbit
+        sensor orbit
 
     Returns
     -------
@@ -523,12 +533,24 @@ def doppler_rate_poly_from_metadata(root: str | SICDType, raster_info: RasterInf
     """
     if isinstance(root, SICDType):
         mtd = root.to_dict()
-        coeff = mtd["RMA"]["INCA"]["DRateSFPoly"]["Coefs"][0]
+        mid_azimuth = raster_info.lines.start + raster_info.lines.length * raster_info.lines.step / 2
+        mid_range = (
+            (raster_info.samples.start + raster_info.samples.length * raster_info.samples.step / 2) * speed_of_light / 2
+        )
+        # NOTE: considering Doppler Rate as a constant, evaluated at mid azimuth, not varying in range or azimuth
+        doppler_rate = (
+            -mtd["RMA"]["INCA"]["FreqZero"]
+            * 2
+            / speed_of_light
+            * np.linalg.norm(orbit.evaluate_first_derivatives(mid_azimuth)) ** 2
+            * mtd["RMA"]["INCA"]["DRateSFPoly"]["Coefs"][0][0]
+            / mid_range
+        )
         doppler_rate_poly = [
             ConversionFunction(
                 azimuth_reference_time=raster_info.lines.start,
                 origin=raster_info.samples.start,
-                function=Polynomial(coeff),
+                function=Polynomial([doppler_rate]),
             )
         ]
         return DopplerEvaluator(

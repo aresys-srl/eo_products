@@ -7,6 +7,7 @@ v1.0.3
 **Other changes**
 
 - Radarsat-2: improved support for reading Radarsat-2 products acquisition modes and proper conversion to SAR standard modes.
+- StriX: improved support for reading Doppler Rate and Doppler Centroid polynomials for SLC products.
 
 v1.0.2
 ------

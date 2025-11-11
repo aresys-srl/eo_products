@@ -28,7 +28,7 @@ from eo_products.common.utilities import LookingDirection, OrbitDirection, Raste
 # 7. SLC raster is flipped in azimuth "The image is oriented shadows downward and a view from above the earth.", always?
 # 8. GRD timeline is not clear, we start from center scene azimuth time and go back half lines value * sat velocity at
 # mid scene
-# 9. GRD need reference to slant range axis to at least be able to perfrom geocoding
+# 9. GRD need reference to slant range axis to at least be able to perform geocoding
 
 
 def read_channel_metadata(file_path: Path | str, channel_id: str) -> support.StriXChannelMetadata:
@@ -102,7 +102,9 @@ def read_channel_metadata(file_path: Path | str, channel_id: str) -> support.Str
     doppler_centroid_poly = support.doppler_centroid_poly_from_metadata_node(root=root, raster_info=raster_info)
 
     # doppler rate polynomial
-    doppler_rate_poly = support.doppler_rate_poly_from_metadata(root=root, raster_info=raster_info)
+    doppler_rate_poly = support.doppler_rate_poly_from_metadata(
+        root=root, raster_info=raster_info, orbit=state_vectors.orbit
+    )
 
     # coordinate conversions
     coordinate_conversions = support.coordinates_conversions_from_metadata(
@@ -282,3 +284,11 @@ def open_product(pf_path: str | Path) -> support.StriXProduct:
         raise support.InvalidStriXProduct(f"{pf_path}")
 
     return support.StriXProduct(path=pf_path)
+
+
+if __name__ == "__main__":
+    prod = open_product(
+        pf_path=r"C:\Users\giorgio.parma\Aresys_DATA\sct_data\synspective\stripmap\IMG-VV-STRIX3-20240603T115211Z-SMSLC-SICD.nitf"
+    )
+    read_channel_metadata(channel_id=prod.channels_list[0], file_path=prod._product_path)
+    ...
