@@ -193,8 +193,8 @@ class BurstInfo:
     """Swath burst info"""
 
     num: int  # number of bursts in this swath
-    lines_per_burst: int  # number of azimuth lines within each burst
-    samples_per_burst: int  # number of range samples within each burst
+    lines_per_burst: int | np.ndarray  # number of azimuth lines within each burst, int if constant, else array
+    samples_per_burst: int | np.ndarray  # number of range samples within each burst, int if constant, else array
     azimuth_start_times: np.ndarray  # zero doppler azimuth time of the first line of this burst
     range_start_times: np.ndarray  # zero doppler range time of the first sample of this burst
 
