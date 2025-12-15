@@ -284,11 +284,3 @@ def open_product(pf_path: str | Path) -> support.StriXProduct:
         raise support.InvalidStriXProduct(f"{pf_path}")
 
     return support.StriXProduct(path=pf_path)
-
-
-if __name__ == "__main__":
-    prod = open_product(
-        pf_path=r"C:\Users\giorgio.parma\Aresys_DATA\sct_data\synspective\stripmap\IMG-VV-STRIX3-20240603T115211Z-SMSLC-SICD.nitf"
-    )
-    read_channel_metadata(channel_id=prod.channels_list[0], file_path=prod._product_path)
-    ...
