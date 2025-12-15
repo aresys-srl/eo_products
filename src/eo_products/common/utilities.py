@@ -61,6 +61,7 @@ class StandardSARAcquisitionMode(Enum):
     STRIPMAP = auto()
     TOPSAR = auto()
     WAVE = auto()
+    ELEVATION_NOTCH = auto()
     UNKNOWN = auto()
 
 

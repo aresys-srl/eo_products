@@ -902,6 +902,8 @@ class S1GeneralChannelInfo:
             S1AcquisitionMode.S6,
         ):
             mode_std = StandardSARAcquisitionMode.STRIPMAP
+        elif mode == S1AcquisitionMode.EN:
+            mode_std = StandardSARAcquisitionMode.ELEVATION_NOTCH
         else:
             mode_std = StandardSARAcquisitionMode.UNKNOWN
 
