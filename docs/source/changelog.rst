@@ -1,6 +1,18 @@
 Changelog
 =========
 
+v1.0.4
+------
+
+**New features**
+
+- Terrasar-X: added support for reading Terrasar-X products.
+
+**Other changes**
+
+- ``common.utilities.BurstInfo`` `lines_per_burst` and `samples_per_burst` are now `int | np.ndarray` instead of `int`.
+- Sentinel-1: added support for reading Elevation Notch products.
+
 v1.0.3
 ------
 

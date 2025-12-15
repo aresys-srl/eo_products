@@ -13,3 +13,4 @@ API reference
    cosmo
    radarsat2
    eos04
+   terrasarx
