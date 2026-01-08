@@ -6,6 +6,7 @@ v1.0.5
 
 **Bug fixing**
 
+- StriX: fixing bug in DopplerEvaluator creation from metadata.
 - Sentinel-1: fixing bug in BurstInfo generation when products is Stripmap (in this case BurstInfo now is equal to RasterInfo)
 
 **Other changes**

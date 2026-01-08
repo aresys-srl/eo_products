@@ -218,6 +218,7 @@ def _read_burst_info_core(
             assert np.unique(burst_annotation.azimuth_sample_relative_index).size == 1, (
                 "lines start changes within burst"
             )
+            assert np.unique(burst_annotation.rng_sample_relative_index).size == 1, "samples start changes within burst"
             azimuth_start_times.append(raster_info.lines.axis[burst_annotation.azimuth_sample_relative_index[0]])
             range_start_times.append(raster_info.samples.axis[0])
             lines_per_burst.append(burst_annotation.azimuth_samples)

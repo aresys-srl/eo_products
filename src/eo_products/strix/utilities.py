@@ -496,19 +496,31 @@ def doppler_centroid_poly_from_metadata_node(root: str | SICDType, raster_info: 
     """
     if isinstance(root, SICDType):
         mtd = root.to_dict()
-        coeffs = mtd["RMA"]["INCA"]["DopCentroidPoly"]["Coefs"][0]
-        # NOTE: considering Doppler Centroid as a constant, evaluated at mid azimuth, not varying in range
-        doppler_centroid = Polynomial(coeffs)(raster_info.lines.length // 2)
-        doppler_poly_list = [
-            ConversionFunction(
-                azimuth_reference_time=raster_info.lines.start,
-                origin=raster_info.samples.start,
-                function=Polynomial([doppler_centroid]),
+        try:
+            coeffs = mtd["RMA"]["INCA"]["DopCentroidPoly"]["Coefs"][0]
+            # NOTE: considering Doppler Centroid as a constant, evaluated at mid azimuth, not varying in range
+            doppler_centroid = Polynomial(coeffs)(raster_info.lines.length // 2)
+            doppler_poly_list = [
+                ConversionFunction(
+                    azimuth_reference_time=raster_info.lines.start,
+                    origin=raster_info.samples.start,
+                    function=Polynomial([doppler_centroid]),
+                )
+            ]
+            return DopplerEvaluator(
+                functions=doppler_poly_list, azimuth_reference_times=np.array([raster_info.lines.start])
             )
-        ]
-        return DopplerEvaluator(
-            functions=doppler_poly_list, azimuth_reference_times=np.array([raster_info.lines.start])
-        )
+        except Exception:
+            doppler_poly_list = [
+                ConversionFunction(
+                    azimuth_reference_time=raster_info.lines.start,
+                    origin=raster_info.samples.start,
+                    function=Polynomial([0.01]),
+                )
+            ]
+            return DopplerEvaluator(
+                functions=doppler_poly_list, azimuth_reference_times=np.array([raster_info.lines.start])
+            )
     return None
 
 
