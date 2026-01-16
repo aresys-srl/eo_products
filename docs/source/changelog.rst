@@ -1,6 +1,17 @@
 Changelog
 =========
 
+v1.0.5
+------
+
+**Bug fixing**
+
+- Sentinel-1: fixing bug in BurstInfo generation when products is Stripmap (in this case BurstInfo now is equal to RasterInfo)
+
+**Other changes**
+
+- Sentinel-1: adding Burst Sensing Times to metadata reader.
+
 v1.0.4
 ------
 

@@ -253,15 +253,15 @@ def raster_info_from_metadata_node(
     )
 
 
-def burst_info_from_metadata(burst_node: etree._Element, samples_start: float) -> BurstInfo:
+def burst_info_from_metadata(burst_node: etree._Element, raster_info: RasterInfo) -> BurstInfo:
     """Generating BurstInfo object directly from metadata.
 
     Parameters
     ----------
     burst_node : etree._Element
         swathTiming xml node
-    samples_start : float
-        samples start time
+    raster_info : RasterInfo
+        raster info
 
     Returns
     -------
@@ -276,14 +276,23 @@ def burst_info_from_metadata(burst_node: etree._Element, samples_start: float) -
         [PreciseDateTime.from_utc_string(t.text) for t in bursts.findall("./burst/azimuthTime")]
     )
 
-    assert numerosity == azimuth_start_times.size
+    if numerosity == 0:
+        # stripmap case
+        return BurstInfo(
+            num=1,
+            lines_per_burst=raster_info.lines.length,
+            samples_per_burst=raster_info.samples.length,
+            azimuth_start_times=raster_info.lines.start,
+            range_start_times=raster_info.samples.start,
+        )
 
+    assert numerosity == azimuth_start_times.size
     return BurstInfo(
         num=numerosity,
         lines_per_burst=lines_per_burst,
         samples_per_burst=samples_per_burst,
         azimuth_start_times=azimuth_start_times,
-        range_start_times=np.repeat(samples_start, numerosity),
+        range_start_times=np.repeat(raster_info.samples.start, numerosity),
     )
 
 
@@ -651,6 +660,25 @@ def antenna_pattern_from_metadata_nodes(antenna_pattern_list_node: etree._Elemen
     }
 
     return antenna
+
+
+def burst_sensing_times_from_metadata(burst_node: etree._Element) -> np.ndarray | None:
+    """Generating burst sensing times array from metadata xml node.
+
+    Parameters
+    ----------
+    burst_node : etree._Element
+        bursts xml node from metadata
+
+    Returns
+    -------
+    np.ndarray | None
+        burst sensing times array, if any else None
+    """
+    bursts = burst_node.find("burstList")
+    if bursts.find("./burst") is not None:
+        return np.array([PreciseDateTime.from_utc_string(t.text) for t in bursts.findall("./burst/sensingTime")])
+    return None
 
 
 @dataclass
@@ -1090,6 +1118,7 @@ class S1ChannelMetadata:
     chirp_replica: dict[str, S1ChirpReplica]  # dictionary key is the swath
     noise: dict[str, S1Noise]  # dictionary key is the swath
     antenna_pattern: dict[str, S1AntennaPattern]  # dictionary key is the swath
+    burst_sensing_times: np.ndarray | None  # burst sensing times array
 
 
 class S1Manifest:

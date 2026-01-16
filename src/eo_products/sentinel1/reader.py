@@ -202,7 +202,10 @@ def read_channel_metadata(
         )
 
     # burst info
-    burst_info = support.burst_info_from_metadata(burst_node=swath_timing, samples_start=raster_info.samples.start)
+    burst_info = support.burst_info_from_metadata(burst_node=swath_timing, raster_info=raster_info)
+
+    # burst sensing times
+    burst_sensing_times = support.burst_sensing_times_from_metadata(burst_node=swath_timing)
 
     # dataset info
     dataset_info = support.dataset_info_from_metadata_nodes(header_node=header, product_info_node=product_info)
@@ -268,6 +271,7 @@ def read_channel_metadata(
         chirp_replica=chirp_replicas,
         noise=noise,
         antenna_pattern=antenna,
+        burst_sensing_times=burst_sensing_times,
     )
 
 
