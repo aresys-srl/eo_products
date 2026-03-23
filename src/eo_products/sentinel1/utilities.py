@@ -681,6 +681,83 @@ def burst_sensing_times_from_metadata(burst_node: etree._Element) -> np.ndarray 
     return None
 
 
+def get_noise_vector(
+    swath: str,
+    azimuth_index: int,
+    azimuth_noise_vectors: list[S1AzimuthNoiseVector] | None,
+    range_noise_vectors: list[S1RangeNoiseVector],
+    is_grd: bool,
+) -> np.ndarray:
+    """Get the noise vector from Sentinel-1 annotation file for a given azimuth index.
+
+    Parameters
+    ----------
+    swath : str
+        current swath name
+    azimuth_index : int
+        azimuth index at which the noise vector is to be computed
+    azimuth_noise_vectors : list[S1AzimuthNoiseVector] | None
+        azimuth noise vectors, if any else None
+    range_noise_vectors : list[S1RangeNoiseVector]
+        range noise vectors
+    is_grd : bool
+        flag to indicate if the product is a GRD or not
+
+    Returns
+    -------
+    np.ndarray
+        noise vector along range samples
+
+    Raises
+    ------
+    ValueError
+        if no azimuth noise vectors are found for the given azimuth index
+    """
+    if azimuth_noise_vectors is None:
+        azimuth_noise_factor = 1.0
+    else:
+        if is_grd:
+            swath_az_vectors = [v for v in azimuth_noise_vectors if swath in v.swath]
+        else:
+            swath_az_vectors = [v for v in azimuth_noise_vectors if v.swath == swath]
+        selected = [s for s in swath_az_vectors if s.first_azimuth_line <= azimuth_index <= s.last_azimuth_line]
+        if not selected:
+            raise ValueError(f"No azimuth noise vectors found for given index {azimuth_index}")
+
+        chunks = []
+        for s in selected:
+            val = np.interp(azimuth_index, s.lines, s.lut)
+            length = s.last_range_sample - s.first_range_sample + 1
+            chunks.append(np.full(length, val))
+
+        azimuth_noise_factor = np.concatenate(chunks)
+
+    # this is the index corresponding to the azimuth node closest to the selected azimuth index, but not greater
+    lines = np.array([r.line for r in range_noise_vectors])
+    # Find index of closest line <= azimuth_index
+    idx = np.searchsorted(lines, azimuth_index, side="right") - 1
+    noise_vector_idx = int(np.clip(idx, 0, len(lines) - 1))
+
+    if noise_vector_idx < len(range_noise_vectors):
+        range_noise_vector_0 = np.interp(
+            np.arange(0, azimuth_noise_factor.size),
+            range_noise_vectors[noise_vector_idx].pixels,
+            range_noise_vectors[noise_vector_idx].lut,
+        )
+        range_noise_vector_1 = np.interp(
+            np.arange(0, azimuth_noise_factor.size),
+            range_noise_vectors[noise_vector_idx + 1].pixels,
+            range_noise_vectors[noise_vector_idx + 1].lut,
+        )
+        interp_weight = (azimuth_index - range_noise_vectors[noise_vector_idx].line) / (
+            range_noise_vectors[noise_vector_idx + 1].line - range_noise_vectors[noise_vector_idx].line
+        )
+        range_noise_vector = (1 - interp_weight) * range_noise_vector_0 + interp_weight * range_noise_vector_1
+    else:
+        range_noise_vector = range_noise_vectors[noise_vector_idx]
+    return range_noise_vector * azimuth_noise_factor
+
+
 @dataclass
 class S1ChirpReplica:
     """Sentinel-1 PG chirp replica parameters derived from the calibration pulses at 100 MHz bandwidth dataclass"""
@@ -808,6 +885,80 @@ class S1Noise:
             time_axis=np.array(time_axis),
             noise_power_correction_factor=np.array(noise_power_correction_factor),
             noise_lines_num=np.array(noise_lines_num),
+        )
+
+
+@dataclass
+class S1RangeNoiseVector:
+    """Sentinel-1 noise vector dataclass"""
+
+    azimuth_time: PreciseDateTime
+    line: int
+    pixels: np.ndarray
+    lut: np.ndarray
+
+    @classmethod
+    def from_node(cls, node: etree._Element) -> S1RangeNoiseVector:
+        """Generating S1RangeNoiseVector object directly from metadata xml node.
+
+        Parameters
+        ----------
+        node : etree._Element
+            noiseRangeVectorList/noiseRangeVector xml node
+
+        Returns
+        -------
+        S1RangeNoiseVector
+            object corresponding to the input xml node
+        """
+        azimuth_time = PreciseDateTime.from_utc_string(node.find("azimuthTime").text)
+        line = int(node.find("line").text)
+        pixels = np.array([int(p) for p in node.find("pixel").text.split()])
+        lut = np.array([float(p) for p in node.find("noiseRangeLut").text.split()])
+        return cls(azimuth_time=azimuth_time, line=line, pixels=pixels, lut=lut)
+
+
+@dataclass
+class S1AzimuthNoiseVector:
+    """Sentinel-1 noise vector dataclass"""
+
+    swath: str
+    first_azimuth_line: int
+    last_azimuth_line: int
+    first_range_sample: int
+    last_range_sample: int
+    lines: np.ndarray
+    lut: np.ndarray
+
+    @classmethod
+    def from_node(cls, node: etree._Element) -> S1AzimuthNoiseVector:
+        """Generating S1AzimuthNoiseVector object directly from metadata xml node.
+
+        Parameters
+        ----------
+        node : etree._Element
+            noiseAzimuthVectorList/noiseAzimuthVector xml node
+
+        Returns
+        -------
+        S1AzimuthNoiseVector
+            object corresponding to the input xml node
+        """
+        swath = node.find("swath").text
+        first_azimuth_line = int(node.find("firstAzimuthLine").text)
+        last_azimuth_line = int(node.find("lastAzimuthLine").text)
+        first_range_sample = int(node.find("firstRangeSample").text)
+        last_range_sample = int(node.find("lastRangeSample").text)
+        lines = np.array([int(p) for p in node.find("line").text.split()])
+        lut = np.array([float(p) for p in node.find("noiseAzimuthLut").text.split()])
+        return cls(
+            swath=swath,
+            first_azimuth_line=first_azimuth_line,
+            last_azimuth_line=last_azimuth_line,
+            first_range_sample=first_range_sample,
+            last_range_sample=last_range_sample,
+            lines=lines,
+            lut=lut,
         )
 
 
@@ -1170,17 +1321,23 @@ class S1Manifest:
 
     def parse_manifest_document(
         self,
-    ) -> tuple[list[str], list[str], list[str], PreciseDateTime, tuple[float, float, float, float]]:
+    ) -> tuple[list[str], list[str], list[str], list[str], PreciseDateTime, tuple[float, float, float, float]]:
         """Parsing SAFE manifest .xml document to gather information to available data, metadata, calibrations and
         product acquisition time.
 
         Returns
         -------
-        tuple[list[str], list[str], list[str], PreciseDateTime, tuple[float, float, float, float]]
-            list of data relative paths with respect to SAFE product folder,
-            list of metadata relative paths with respect to SAFE product folder,
-            list of calibration relative paths with respect to SAFE product folder,
-            acquisition start time,
+        list[str]
+            list of data relative paths with respect to SAFE product folder
+        list[str]
+            list of metadata relative paths with respect to SAFE product folder
+        list[str]
+            list of calibration relative paths with respect to SAFE product folder
+        list[str]
+            list of noise relative paths with respect to SAFE product folder
+        PreciseDateTime
+            acquisition start time
+        tuple[float, float, float, float]
             product footprint [min lat, max lat, min lon, max lon]
         """
         data_object_section = self._root.find("dataObjectSection")
@@ -1197,6 +1354,10 @@ class S1Manifest:
         # extracting paths to each calibration file inside the SAFE product
         calibration_elements = [d for d in data_objects if dict(d.items())["repID"] == "s1Level1CalibrationSchema"]
         relative_calibration_paths = self._extract_relative_path_from_nodes(calibration_elements)
+
+        # extracting paths to each noise file inside the SAFE product
+        noise_elements = [d for d in data_objects if dict(d.items())["repID"] == "s1Level1NoiseSchema"]
+        relative_noise_paths = self._extract_relative_path_from_nodes(noise_elements)
 
         # extracting acquisition start time
         metadata_objects = self._root.find("metadataSection").findall("metadataObject")
@@ -1222,7 +1383,14 @@ class S1Manifest:
         latitudes = [float(f) for f in footprint_str[::2]]
         footprint = (min(latitudes), max(latitudes), min(longitudes), max(longitudes))
 
-        return relative_data_paths, relative_metadata_paths, relative_calibration_paths, acq_start_time, footprint
+        return (
+            relative_data_paths,
+            relative_metadata_paths,
+            relative_calibration_paths,
+            relative_noise_paths,
+            acq_start_time,
+            footprint,
+        )
 
 
 class SAFEFolderLayout:
@@ -1279,7 +1447,7 @@ class S1Product:
         self._manifest = S1Manifest(manifest_path=self._layout.manifest)
 
         # locating relative data and metadata paths inside SAFE product folder
-        (data_rel_paths, metadata_rel_paths, calibration_rel_paths, acquisition_time, footprint) = (
+        (data_rel_paths, metadata_rel_paths, calibration_rel_paths, noise_rel_paths, acquisition_time, footprint) = (
             self._manifest.parse_manifest_document()
         )
         # validating channel data pairs (raster + metadata)
@@ -1289,6 +1457,7 @@ class S1Product:
         self._data_paths = self._get_full_file_paths(data_rel_paths)
         self._metadata_paths = self._get_full_file_paths(metadata_rel_paths)
         self._calibration_paths = self._get_full_file_paths(calibration_rel_paths)
+        self._noise_paths = self._get_full_file_paths(noise_rel_paths)
         self._channels_number = len(self._data_paths)
 
         # acquisition time
@@ -1363,6 +1532,11 @@ class S1Product:
         return self._calibration_paths
 
     @property
+    def noise_list(self) -> list[Path]:
+        """Returning the list of noise files in SAFE product"""
+        return self._noise_paths
+
+    @property
     def channels_number(self) -> int:
         """Returning the number of channels in the SAFE product"""
         return self._channels_number
@@ -1377,7 +1551,7 @@ class S1Product:
         """Product footprint as tuple of (min lat, max lat, min lon, max lon)"""
         return self._footprint
 
-    def get_files_from_channel_name(self, channel_name: str) -> tuple[Path, Path, Path]:
+    def get_files_from_channel_name(self, channel_name: str) -> tuple[Path, Path, Path, Path]:
         """Get metadata, raster and calibration file paths associated to input channel name.
 
         Parameters
@@ -1387,10 +1561,14 @@ class S1Product:
 
         Returns
         -------
-        tuple[Path, Path, Path]
-            metadata file path,
-            raster file path,
+        Path
+            metadata file path
+        Path
+            raster file path
+        Path
             calibration file path
+        Path
+            noise file path
         """
 
         def _check_name(name: str, file_path: Path, is_wave: bool) -> bool:
@@ -1411,7 +1589,8 @@ class S1Product:
         calibration = [
             c for c in self.calibration_list if _check_name(name=channel_name, file_path=c, is_wave=self._is_wave)
         ][0]
-        return metadata, raster, calibration
+        noise = [n for n in self.noise_list if _check_name(name=channel_name, file_path=n, is_wave=self._is_wave)][0]
+        return metadata, raster, calibration, noise
 
 
 def is_s1_safe_product(product: str | Path) -> bool:

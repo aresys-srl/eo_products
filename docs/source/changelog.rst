@@ -1,6 +1,13 @@
 Changelog
 =========
 
+v1.0.6
+------
+
+**New features**
+
+- Sentinel-1: adding support for reading noise annotation files.
+
 v1.0.5
 ------
 

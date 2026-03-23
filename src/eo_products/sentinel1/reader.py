@@ -305,6 +305,41 @@ def read_channel_calibration(
     )
 
 
+def read_channel_noise_vectors(
+    noise_file: str | Path,
+) -> tuple[list[support.S1AzimuthNoiseVector] | None, list[support.S1RangeNoiseVector]]:
+    """Reading SAFE product channel noise vectors file in annotations folder.
+
+    Parameters
+    ----------
+    noise_file : str | Path
+        path to the channel noise vectors xml file
+
+    Returns
+    -------
+    list[support.S1AzimuthNoiseVector] | None
+        list of azimuth noise vectors, if any else None
+    list[support.S1RangeNoiseVector]
+        list of range noise vectors
+    """
+    # loading the xml file
+    root = etree.parse(str(noise_file)).getroot()
+
+    azimuth_vectors = [
+        support.S1AzimuthNoiseVector.from_node(node=node)
+        for node in root.findall("noiseAzimuthVectorList/noiseAzimuthVector")
+    ]
+    if not azimuth_vectors:
+        azimuth_vectors = None
+
+    range_vectors = [
+        support.S1RangeNoiseVector.from_node(node=node)
+        for node in root.findall("noiseRangeVectorList/noiseRangeVector")
+    ]
+
+    return azimuth_vectors, range_vectors
+
+
 def read_channel_data(
     raster_file: str | Path, block_to_read: list[int] = None, scaling_conversion: float = 1
 ) -> np.ndarray:
