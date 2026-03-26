@@ -1,6 +1,13 @@
 Changelog
 =========
 
+v1.0.7
+------
+
+**Other changes**
+
+- Sentinel-1: improving array of floats as strings reading when trailing spaces are present.
+
 v1.0.6
 ------
 

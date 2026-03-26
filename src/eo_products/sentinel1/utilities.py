@@ -503,9 +503,9 @@ def doppler_centroid_evaluator_from_metadata_nodes(
     doppler_poly_list = []
     for item in dc_estimate_node:
         if estimate_method == S1DCEstimateMethod.DATA:
-            coefficients = [float(c) for c in item.find("dataDcPolynomial").text.split(" ")]
+            coefficients = [float(c) for c in item.find("dataDcPolynomial").text.split(" ") if c]
         else:
-            coefficients = [float(c) for c in item.find("geometryDcPolynomial").text.split(" ")]
+            coefficients = [float(c) for c in item.find("geometryDcPolynomial").text.split(" ") if c]
 
         doppler_poly_list.append(
             ConversionFunction(
@@ -536,7 +536,7 @@ def doppler_rate_evaluator_from_metadata_nodes(azimuth_fm_rate_node: etree._Elem
     """
     doppler_poly_list = []
     for item in azimuth_fm_rate_node:
-        coefficients = [float(c) for c in item.find("azimuthFmRatePolynomial").text.split(" ")]
+        coefficients = [float(c) for c in item.find("azimuthFmRatePolynomial").text.split(" ") if c]
         doppler_poly_list.append(
             ConversionFunction(
                 azimuth_reference_time=PreciseDateTime.from_utc_string(item.find("azimuthTime").text),
@@ -591,8 +591,8 @@ def coordinates_conversions_from_metadata(coord_conversion_node: etree._Element)
         rng_time_axis.append(float(item.find("slantRangeTime").text))
         slant_range_origin.append(float(item.find("sr0").text))
         ground_range_origin.append(float(item.find("gr0").text))
-        slant_to_ground_coeff.append([float(c) for c in item.find("srgrCoefficients").text.split(" ")])
-        ground_to_slant_coeff.append([float(c) for c in item.find("grsrCoefficients").text.split(" ")])
+        slant_to_ground_coeff.append([float(c) for c in item.find("srgrCoefficients").text.split(" ") if c])
+        ground_to_slant_coeff.append([float(c) for c in item.find("grsrCoefficients").text.split(" ") if c])
 
     # creating polynomial dataclasses
     ground_to_slant_poly = [
@@ -1004,10 +1004,14 @@ class S1AntennaPattern:
         roll = []
         for item in filtered_nodes:
             time_axis.append(PreciseDateTime.from_utc_string(item.find("azimuthTime").text))
-            slant_range_time_array.append(np.array([float(c) for c in item.find("slantRangeTime").text.split(" ")]))
-            elevation_angle_array.append(np.array([float(c) for c in item.find("elevationAngle").text.split(" ")]))
-            elevation_pattern_array.append(np.array([float(c) for c in item.find("elevationPattern").text.split(" ")]))
-            incidence_angle.append(np.array([float(c) for c in item.find("incidenceAngle").text.split(" ")]))
+            slant_range_time_array.append(
+                np.array([float(c) for c in item.find("slantRangeTime").text.split(" ") if c])
+            )
+            elevation_angle_array.append(np.array([float(c) for c in item.find("elevationAngle").text.split(" ") if c]))
+            elevation_pattern_array.append(
+                np.array([float(c) for c in item.find("elevationPattern").text.split(" ") if c])
+            )
+            incidence_angle.append(np.array([float(c) for c in item.find("incidenceAngle").text.split(" ") if c]))
             terrain_height.append(float(item.find("terrainHeight").text))
             roll.append(float(item.find("roll").text))
 
