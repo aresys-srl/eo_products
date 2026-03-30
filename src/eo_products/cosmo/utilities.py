@@ -413,7 +413,7 @@ def coordinates_conversions_from_metadata(
     ----------
     root_attributes : h5py.AttributeManager
         metadata root attributes
-    azimuth_ref_time : PreciseDateTime
+    azimuth_ref : PreciseDateTime
         reference azimuth time
     range_step_m : float
         range step in meters

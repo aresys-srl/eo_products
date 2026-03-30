@@ -201,7 +201,7 @@ def open_product(path: str | Path) -> support.EOS04Product:
 
     Parameters
     ----------
-    pf_path : str | Path
+    path : str | Path
         Path to the EOS04 product
 
     Returns

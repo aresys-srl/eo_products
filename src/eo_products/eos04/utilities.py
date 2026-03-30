@@ -354,7 +354,7 @@ def swath_info_from_metadata(
         ImageGenerationParameters xml node
     polarization : SARPolarization
         product acquisition mode
-    beam_id : int
+    beam : int
         channel beam id
     product_type : EOS04ProductType
         product type
@@ -704,7 +704,7 @@ class EOS04GeneralChannelInfo:
         ----------
         source_attributes_node : etree._Element
             SourceAttributes metadata xml node
-        prod_type : str
+        product_type : str
             product type
         channel_id : str
             channel id

@@ -2,7 +2,7 @@
 name = "eo_products"
 description = "Collection of SAR Earth Observation L1 Product Formats readers."
 authors = [{ name = "Aresys S.R.L.", email = "info@aresys.it" }]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 readme = "README.md"
 license = { file = "LICENSE.txt" }
 dependencies = [
@@ -25,7 +25,6 @@ classifiers = [
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -39,14 +38,7 @@ classifiers = [
 [project.optional-dependencies]
 dev = ["ruff", "pylint"]
 test = ["unittest-xml-reporting", "coverage"]
-docs = [
-    "ipython",
-    "nbsphinx",
-    "sphinx",
-    "sphinx-design",
-    "sphinx-copybutton",
-    "pydata-sphinx-theme",
-]
+docs = ["zensical", "mkdocstrings-python"]
 
 [build-system]
 requires = ["hatchling"]

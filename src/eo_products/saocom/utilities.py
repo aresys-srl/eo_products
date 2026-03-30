@@ -572,7 +572,7 @@ class SAOCOMGeneralChannelInfo:
 
         Parameters
         ----------
-        root : etree._Element
+        node : etree._Element
             Channel metadata node
         channel_id : str
             channel id
