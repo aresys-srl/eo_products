@@ -714,7 +714,7 @@ def get_noise_vector(
         if no azimuth noise vectors are found for the given azimuth index
     """
     if azimuth_noise_vectors is None:
-        azimuth_noise_factor = 1.0
+        azimuth_noise_factor = np.ones(range_noise_vectors[0].pixels[-1] + 1)
     else:
         if is_grd:
             swath_az_vectors = [v for v in azimuth_noise_vectors if swath in v.swath]

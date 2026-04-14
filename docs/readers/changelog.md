@@ -8,6 +8,12 @@ tags:
 
 # Changelog
 
+## v1.0.8
+
+**Bug fixing**
+
+- Sentinel-1: fixing bug in noise vector interpolation when only range vectors are present.
+
 ## v1.0.7
 
 **Other changes**
