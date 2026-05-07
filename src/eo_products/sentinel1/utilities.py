@@ -995,6 +995,9 @@ class S1AntennaPattern:
         # taking only the nodes corresponding to the selected swath
         filtered_nodes = filter(lambda x: x.find("swath").text == swath, antenna_pattern_list_node)
 
+        def _parse_ap(array: np.ndarray) -> np.ndarray:
+            return array[:, 0] + 1j * array[:, 1]
+
         time_axis = []
         slant_range_time_array = []
         elevation_angle_array = []
@@ -1009,7 +1012,9 @@ class S1AntennaPattern:
             )
             elevation_angle_array.append(np.array([float(c) for c in item.find("elevationAngle").text.split(" ") if c]))
             elevation_pattern_array.append(
-                np.array([float(c) for c in item.find("elevationPattern").text.split(" ") if c])
+                _parse_ap(
+                    np.array([float(c) for c in item.find("elevationPattern").text.split(" ") if c]).reshape(-1, 2)
+                )
             )
             incidence_angle.append(np.array([float(c) for c in item.find("incidenceAngle").text.split(" ") if c]))
             terrain_height.append(float(item.find("terrainHeight").text))

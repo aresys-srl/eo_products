@@ -13,6 +13,7 @@ tags:
 **Bug fixing**
 
 - Sentinel-1: fixing bug in noise vector interpolation when only range vectors are present.
+- Sentinel-1: fixing bug in elevation antenna pattern metadata reading (data is complex now).
 
 ## v1.0.7
 
