@@ -107,5 +107,5 @@ deploy_doc:
       done
     - unzip *.zip
     - mv site ${CI_COMMIT_TAG}
-    - rsync --stats -r ${PACKAGE_VERSION} sardashboard@intranet.aresys.it:develop/eo_products/docs
-    - ssh sardashboard@intranet.aresys.it "cd develop/eo_products/docs && rm latest && ln -s ${PACKAGE_VERSION} latest"
+    - rsync --stats -r ${CI_COMMIT_TAG} sardashboard@intranet.aresys.it:develop/eo_products/docs
+    - ssh sardashboard@intranet.aresys.it "cd develop/eo_products/docs && rm latest && ln -s ${CI_COMMIT_TAG} latest"
