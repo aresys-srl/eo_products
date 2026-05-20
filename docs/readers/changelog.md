@@ -8,6 +8,12 @@ tags:
 
 # Changelog
 
+## v1.0.9
+
+**Other changes**
+
+- Sentinel-1: adding support for reading multiple noise vectors at once based on input azimuth indexes, keeping backward compatibility.
+
 ## v1.0.8
 
 **Bug fixing**

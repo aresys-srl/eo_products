@@ -681,38 +681,13 @@ def burst_sensing_times_from_metadata(burst_node: etree._Element) -> np.ndarray 
     return None
 
 
-def get_noise_vector(
+def _get_noise_vector_at(
     swath: str,
     azimuth_index: int,
     azimuth_noise_vectors: list[S1AzimuthNoiseVector] | None,
     range_noise_vectors: list[S1RangeNoiseVector],
     is_grd: bool,
 ) -> np.ndarray:
-    """Get the noise vector from Sentinel-1 annotation file for a given azimuth index.
-
-    Parameters
-    ----------
-    swath : str
-        current swath name
-    azimuth_index : int
-        azimuth index at which the noise vector is to be computed
-    azimuth_noise_vectors : list[S1AzimuthNoiseVector] | None
-        azimuth noise vectors, if any else None
-    range_noise_vectors : list[S1RangeNoiseVector]
-        range noise vectors
-    is_grd : bool
-        flag to indicate if the product is a GRD or not
-
-    Returns
-    -------
-    np.ndarray
-        noise vector along range samples
-
-    Raises
-    ------
-    ValueError
-        if no azimuth noise vectors are found for the given azimuth index
-    """
     if azimuth_noise_vectors is None:
         azimuth_noise_factor = np.ones(range_noise_vectors[0].pixels[-1] + 1)
     else:
@@ -732,13 +707,11 @@ def get_noise_vector(
 
         azimuth_noise_factor = np.concatenate(chunks)
 
-    # this is the index corresponding to the azimuth node closest to the selected azimuth index, but not greater
     lines = np.array([r.line for r in range_noise_vectors])
-    # Find index of closest line <= azimuth_index
     idx = np.searchsorted(lines, azimuth_index, side="right") - 1
     noise_vector_idx = int(np.clip(idx, 0, len(lines) - 1))
 
-    if noise_vector_idx < len(range_noise_vectors):
+    if noise_vector_idx < len(range_noise_vectors) - 1:
         range_noise_vector_0 = np.interp(
             np.arange(0, azimuth_noise_factor.size),
             range_noise_vectors[noise_vector_idx].pixels,
@@ -756,6 +729,51 @@ def get_noise_vector(
     else:
         range_noise_vector = range_noise_vectors[noise_vector_idx]
     return range_noise_vector * azimuth_noise_factor
+
+
+def get_noise_vectors(
+    swath: str,
+    azimuth_indexes: int | tuple[int, int],
+    azimuth_noise_vectors: list[S1AzimuthNoiseVector] | None,
+    range_noise_vectors: list[S1RangeNoiseVector],
+    is_grd: bool,
+) -> np.ndarray:
+    """Get the noise vector(s) from Sentinel-1 annotation file for the given azimuth index(es).
+
+    Parameters
+    ----------
+    swath : str
+        current swath name
+    azimuth_indexes : int | tuple[int, int]
+        azimuth index (int) at which the noise vector is to be computed, or a tuple [start, stop) of azimuth indices to
+        get multiple vectors in the inclusive range (start included, stop excluded).
+    azimuth_noise_vectors : list[S1AzimuthNoiseVector] | None
+        azimuth noise vectors, if any else None
+    range_noise_vectors : list[S1RangeNoiseVector]
+        range noise vectors
+    is_grd : bool
+        flag to indicate if the product is a GRD or not
+
+    Returns
+    -------
+    np.ndarray
+        noise vectors along range samples, with shape (N,) when azimuth_index is an int, (M, N) when azimuth_index
+        is a tuple.
+
+    Raises
+    ------
+    ValueError
+        if no azimuth noise vectors are found for the given azimuth index
+    """
+    if isinstance(azimuth_indexes, tuple):
+        start, stop = azimuth_indexes
+        return np.array(
+            [
+                _get_noise_vector_at(swath, idx, azimuth_noise_vectors, range_noise_vectors, is_grd)
+                for idx in range(start, stop)
+            ]
+        )
+    return _get_noise_vector_at(swath, azimuth_indexes, azimuth_noise_vectors, range_noise_vectors, is_grd)
 
 
 @dataclass
