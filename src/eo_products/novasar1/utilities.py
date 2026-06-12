@@ -11,11 +11,11 @@ from enum import Enum, auto
 from pathlib import Path
 
 import numpy as np
-from arepytools.geometry.orbit import Orbit
-from arepytools.timing.precisedatetime import PreciseDateTime
 from lxml import etree
 from numpy.polynomial.polynomial import Polynomial
 from numpy.typing import ArrayLike
+from perseo_core.geometry.navigation import Trajectory
+from perseo_core.timing import PreciseDateTime
 from scipy.constants import speed_of_light
 
 from eo_products.common.utilities import (
@@ -812,7 +812,7 @@ class NovaSAR1ChannelMetadata:
     """NovaSAR-1 channel metadata xml file wrapper"""
 
     general_info: NovaSAR1GeneralChannelInfo
-    orbit: Orbit
+    orbit: Trajectory
     attitude: NovaSAR1Attitude
     image_calibration_factor: float
     image_radiometric_quantity: SARRadiometricQuantity

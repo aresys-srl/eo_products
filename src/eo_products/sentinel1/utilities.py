@@ -11,10 +11,10 @@ from enum import Enum
 from pathlib import Path
 
 import numpy as np
-from arepytools.geometry.orbit import Orbit
-from arepytools.timing.precisedatetime import InvalidUtcString, PreciseDateTime
 from lxml import etree
 from numpy.polynomial.polynomial import Polynomial
+from perseo_core.geometry.navigation import Trajectory
+from perseo_core.timing import PreciseDateTime
 
 from eo_products.common.utilities import (
     AcquisitionTimeline,
@@ -1277,7 +1277,7 @@ class S1ChannelMetadata:
     """Sentinel-1 channel metadata xml file wrapper"""
 
     general_info: S1GeneralChannelInfo
-    orbit: Orbit
+    orbit: Trajectory
     attitude: S1Attitude
     burst_info: BurstInfo
     raster_info: RasterInfo
@@ -1390,7 +1390,7 @@ class S1Manifest:
         date = [p.text for p in period if "startTime" in p.tag][0]
         try:
             acq_start_time = PreciseDateTime.from_utc_string(date)
-        except InvalidUtcString:
+        except ValueError:
             acq_start_time = PreciseDateTime.fromisoformat(date)
 
         # extracting product footprint

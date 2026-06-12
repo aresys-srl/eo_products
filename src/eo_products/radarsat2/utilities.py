@@ -11,10 +11,10 @@ from enum import Enum, auto
 from pathlib import Path
 
 import numpy as np
-from arepytools.geometry.orbit import Orbit
-from arepytools.timing.precisedatetime import PreciseDateTime
 from lxml import etree
 from numpy.polynomial import Polynomial
+from perseo_core.geometry.navigation import Trajectory
+from perseo_core.timing import PreciseDateTime
 from scipy.constants import speed_of_light
 
 from eo_products.common.utilities import (
@@ -737,7 +737,7 @@ class RADARSATChannelMetadata:
     swath_info: SwathInfo
     sampling_constants: SARSamplingFrequencies
     state_vectors: StateVectors
-    orbit: Orbit
+    orbit: Trajectory
     samples_ordering: RADARSATTimeOrdering
     lines_ordering: RADARSATTimeOrdering
     doppler_centroid_poly: DopplerEvaluator

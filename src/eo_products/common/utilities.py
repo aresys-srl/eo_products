@@ -10,10 +10,10 @@ from enum import Enum, auto
 from typing import Any, Literal
 
 import numpy as np
-from arepytools.geometry.orbit import Orbit
-from arepytools.timing.precisedatetime import PreciseDateTime
 from numpy.polynomial import Polynomial
 from numpy.typing import ArrayLike
+from perseo_core.geometry.navigation import CubicSplineTrajectory, Trajectory
+from perseo_core.timing import PreciseDateTime
 from scipy.interpolate import CubicSpline
 
 LookingDirection = Literal["LEFT", "RIGHT"]
@@ -231,12 +231,12 @@ class StateVectors:
     orbit_direction: OrbitDirection | None = None  # orbit direction: ascending or descending
     orbit_type: Any | None = None  # orbit level type
     reference_frame: Any | None = None  # reference frame
-    orbit: Orbit = field(init=False)
+    orbit: Trajectory = field(init=False)
 
     def __post_init__(self):
-        """Generating an Orbit trajectory object from state vectors data"""
+        """Generating a CubicSplineTrajectory trajectory object from state vectors data"""
         assert self.time_axis.size == self.positions.shape[0] == self.velocities.shape[0] == self.num
-        self.orbit = Orbit(times=self.time_axis, positions=self.positions, velocities=self.velocities)
+        self.orbit = CubicSplineTrajectory(times=self.time_axis, positions=self.positions, velocities=self.velocities)
 
 
 @dataclass

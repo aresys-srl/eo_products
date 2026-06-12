@@ -12,10 +12,10 @@ from enum import Enum, auto
 from pathlib import Path
 
 import numpy as np
-from arepytools.geometry.orbit import Orbit
-from arepytools.timing.precisedatetime import PreciseDateTime
 from lxml import etree
 from numpy.polynomial.polynomial import Polynomial
+from perseo_core.geometry.navigation import Trajectory
+from perseo_core.timing import PreciseDateTime
 from scipy.constants import speed_of_light
 
 from eo_products.common.utilities import (
@@ -751,7 +751,7 @@ class EOS04ChannelMetadata:
 
     channel_id: str
     general_info: EOS04GeneralChannelInfo
-    orbit: Orbit
+    orbit: Trajectory
     attitude: EOS04Attitude
     image_calibration_factor: float
     image_radiometric_quantity: SARRadiometricQuantity

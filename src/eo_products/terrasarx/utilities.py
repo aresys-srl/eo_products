@@ -9,10 +9,10 @@ from enum import Enum
 from pathlib import Path
 
 import numpy as np
-from arepytools.geometry.direct_geocoding import direct_geocoding_monostatic
-from arepytools.geometry.orbit import Orbit
-from arepytools.timing.precisedatetime import PreciseDateTime
 from lxml import etree
+from perseo_core.geometry.geocoding import direct_geocoding_monostatic
+from perseo_core.geometry.navigation import CubicSplineTrajectory
+from perseo_core.timing import PreciseDateTime
 from scipy.constants import speed_of_light
 
 import eo_products.terrasarx.raster_reader as raster_reader
@@ -783,16 +783,16 @@ def coordinates_conversions_from_metadata(
     else:  # no coefficient is given
         mid_azimuth = raster_info.lines.start + raster_info.lines.length * raster_info.lines.step / 2
         range_times = np.arange(0, raster_info.samples.length, 1) * raster_info.samples.step + raster_info.samples.start
-        orbit = Orbit(state_vectors.time_axis, state_vectors.positions, state_vectors.velocities)
+        orbit = CubicSplineTrajectory(state_vectors.time_axis, state_vectors.positions, state_vectors.velocities)
         fc_hz = float(root.xpath(".//instrument/radarParameters/centerFrequency")[0].text)
         ground_points = direct_geocoding_monostatic(
-            sensor_positions=orbit.evaluate(mid_azimuth),
-            sensor_velocities=orbit.evaluate_first_derivatives(mid_azimuth),
+            sensor_positions=orbit.position(mid_azimuth),
+            sensor_velocities=orbit.velocity(mid_azimuth),
             range_times=range_times,
-            frequencies_doppler_centroid=doppler_centroid_poly.evaluate(raster_info.lines.start, range_times),
+            doppler_frequencies=doppler_centroid_poly.evaluate(raster_info.lines.start, range_times),
             wavelength=speed_of_light / fc_hz,
-            geocoding_side=root.xpath(".//productInfo/acquisitionInfo/lookDirection")[0].text.upper(),
-            geodetic_altitude=0,
+            look_direction=root.xpath(".//productInfo/acquisitionInfo/lookDirection")[0].text.upper(),
+            altitude=0,
         )
         ground_points_distances = np.linalg.norm(np.diff(ground_points, axis=0), axis=1)
         ground_range_axis = np.r_[[0], np.cumsum(ground_points_distances)]

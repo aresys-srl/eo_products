@@ -9,8 +9,8 @@ from pathlib import Path
 
 import numpy as np
 import zarr
-from arepytools.timing.precisedatetime import PreciseDateTime
 from lxml import etree
+from perseo_core.timing import PreciseDateTime
 from tifffile import imread
 
 import eo_products.sentinel1.utilities as support

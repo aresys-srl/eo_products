@@ -68,7 +68,7 @@ def read_channel_metadata(file_path: Path | str, channel_id: str) -> support.Str
 
     # general info
     general_info = support.StriXGeneralChannelInfo.from_metadata(
-        root=root, product_name=product_name, orbit=state_vectors.orbit, channel_id=channel_id
+        root=root, product_name=product_name, channel_id=channel_id
     )
     general_info.orbit_direction = state_vectors.orbit_direction
 

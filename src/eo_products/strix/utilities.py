@@ -11,10 +11,10 @@ from enum import Enum
 from pathlib import Path
 
 import numpy as np
-from arepytools.geometry.direct_geocoding import direct_geocoding_monostatic
-from arepytools.geometry.orbit import Orbit
-from arepytools.timing.precisedatetime import PreciseDateTime
 from numpy.polynomial import Polynomial
+from perseo_core.geometry.geocoding import direct_geocoding_monostatic
+from perseo_core.geometry.navigation import Trajectory
+from perseo_core.timing import PreciseDateTime
 from sarpy.io.complex.sicd import SICDReader, SICDType
 from scipy.constants import speed_of_light
 
@@ -136,7 +136,7 @@ def _compose_channels_names(polarizations: list[SARPolarization], beams: list[st
 
 
 def _get_azimuth_time_axis_elements(
-    root: str | SICDType, orbit: Orbit | None = None
+    root: str | SICDType, orbit: Trajectory | None = None
 ) -> tuple[PreciseDateTime, float, int]:
     """Getting azimuth time axis elements from metadata file.
 
@@ -144,7 +144,7 @@ def _get_azimuth_time_axis_elements(
     ----------
     root : str | SICDType
         metadata root object, string file content or SICDType object
-    orbit : Orbit | None, optional
+    orbit : Trajectory | None, optional
         sensor orbit, needed for GRD only, by default None
 
     Returns
@@ -163,7 +163,7 @@ def _get_azimuth_time_axis_elements(
     else:
         lines = int(regex_collection["lines"].findall(root)[0])
         lines_step_m = float(regex_collection["azimuth_step"].findall(root)[0])
-        mid_swath_sat_velocity = np.linalg.norm(orbit.evaluate_first_derivatives(lines_mid))
+        mid_swath_sat_velocity = np.linalg.norm(orbit.velocity(lines_mid))
         lines_step = lines_step_m / mid_swath_sat_velocity
         lines_start = lines_mid - lines / 2 * lines_step
 
@@ -255,14 +255,14 @@ def get_basic_info_from_metadata(
     )
 
 
-def raster_info_from_metadata(root: str | SICDType, orbit: Orbit) -> RasterInfo:
+def raster_info_from_metadata(root: str | SICDType, orbit: Trajectory) -> RasterInfo:
     """Creating a RasterInfo metadata object from metadata file.
 
     Parameters
     ----------
     root : str | SICDType
         metadata root object, string file content or SICDType object
-    orbit : Orbit
+    orbit : Trajectory
         sensor orbit
 
     Returns
@@ -522,7 +522,7 @@ def doppler_centroid_poly_from_metadata_node(root: str | SICDType, raster_info: 
 
 
 def doppler_rate_poly_from_metadata(
-    root: str | SICDType, raster_info: RasterInfo, orbit: Orbit
+    root: str | SICDType, raster_info: RasterInfo, orbit: Trajectory
 ) -> DopplerEvaluator | None:
     """Creating a DopplerEvaluator doppler rate vector polynomial wrapper from metadata.
 
@@ -532,7 +532,7 @@ def doppler_rate_poly_from_metadata(
         metadata root object
     raster_info : RasterInfo
         channel raster info
-    orbit : Orbit
+    orbit : Trajectory
         sensor orbit
 
     Returns
@@ -551,7 +551,7 @@ def doppler_rate_poly_from_metadata(
             -mtd["RMA"]["INCA"]["FreqZero"]
             * 2
             / speed_of_light
-            * np.linalg.norm(orbit.evaluate_first_derivatives(mid_azimuth)) ** 2
+            * np.linalg.norm(orbit.velocity(mid_azimuth)) ** 2
             * mtd["RMA"]["INCA"]["DRateSFPoly"]["Coefs"][0][0]
             / mid_range
         )
@@ -601,7 +601,7 @@ def get_calibration_factor_and_quantity_from_metadata(root: str | SICDType) -> f
 
 
 def coordinates_conversions_from_metadata(
-    root: str | SICDType, raster_info: RasterInfo, orbit: Orbit
+    root: str | SICDType, raster_info: RasterInfo, orbit: Trajectory
 ) -> CoordinatesConversions:
     """Generating CoordinatesConversions object from metadata.
 
@@ -622,7 +622,7 @@ def coordinates_conversions_from_metadata(
         metadata root object, string file content or SICDType object
     raster_info : RasterInfo
         product raster info
-    orbit : Orbit
+    orbit : Trajectory
         sensor orbit
 
     Returns
@@ -638,13 +638,13 @@ def coordinates_conversions_from_metadata(
     mid_azimuth = raster_info.lines.start + raster_info.lines.length * raster_info.lines.step / 2
     range_times = np.arange(0, raster_info.samples.length, 1) * raster_info.samples.step + raster_info.samples.start
     ground_points = direct_geocoding_monostatic(
-        sensor_positions=orbit.evaluate(mid_azimuth),
-        sensor_velocities=orbit.evaluate_first_derivatives(mid_azimuth),
+        sensor_positions=orbit.position(mid_azimuth),
+        sensor_velocities=orbit.velocity(mid_azimuth),
         range_times=range_times,
-        frequencies_doppler_centroid=0,
+        doppler_frequencies=0,
         wavelength=1,
-        geocoding_side=look_side,
-        geodetic_altitude=0,
+        look_direction=look_side,
+        altitude=0,
     )
     ground_points_distances = np.linalg.norm(np.diff(ground_points, axis=0), axis=1)
     ground_range_axis = np.r_[[0], np.cumsum(ground_points_distances)]
@@ -689,17 +689,13 @@ class StriXGeneralChannelInfo:
     orbit_direction: OrbitDirection | None = None
 
     @classmethod
-    def from_metadata(
-        cls, root: str | SICDType, orbit: Orbit, product_name: str, channel_id: str
-    ) -> StriXGeneralChannelInfo:
+    def from_metadata(cls, root: str | SICDType, product_name: str, channel_id: str) -> StriXGeneralChannelInfo:
         """Generating StriXGeneralChannelInfo object directly from metadata.
 
         Parameters
         ----------
         root : str | SICDType
             xml metadata file content as string or SICDType object
-        orbit : Orbit
-            sensor orbit
         product_name : str
             product name
         channel_id : str
@@ -744,7 +740,7 @@ class StriXChannelMetadata:
     """StriX channel metadata dataclass"""
 
     general_info: StriXGeneralChannelInfo
-    orbit: Orbit
+    orbit: Trajectory
     image_calibration_factor: float
     image_radiometric_quantity: SARRadiometricQuantity
     burst_info: BurstInfo

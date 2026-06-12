@@ -11,9 +11,9 @@ from pathlib import Path
 
 import h5py
 import numpy as np
-from arepytools.geometry.orbit import Orbit
-from arepytools.timing.precisedatetime import PreciseDateTime
 from numpy.polynomial import Polynomial
+from perseo_core.geometry.navigation import Trajectory
+from perseo_core.timing import PreciseDateTime
 from scipy.constants import speed_of_light
 
 from eo_products.common.utilities import (
@@ -733,7 +733,7 @@ class COSMOChannelMetadata:
     """COSMO channel metadata dataclass"""
 
     general_info: COSMOGeneralChannelInfo
-    orbit: Orbit
+    orbit: Trajectory
     image_calibration_factor: float
     image_radiometric_quantity: SARRadiometricQuantity
     burst_info: BurstInfo
