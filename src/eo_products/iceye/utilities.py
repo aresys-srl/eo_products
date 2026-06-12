@@ -1,10 +1,7 @@
 # SPDX-FileCopyrightText: Aresys S.r.l. <info@aresys.it>
 # SPDX-License-Identifier: MIT
 
-"""
-ICEYE reader support module
----------------------------
-"""
+"""ICEYE reader support module."""
 
 from __future__ import annotations
 

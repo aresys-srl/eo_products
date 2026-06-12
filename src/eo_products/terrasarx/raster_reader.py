@@ -1,10 +1,7 @@
 # SPDX-FileCopyrightText: Aresys S.r.l. <info@aresys.it>
 # SPDX-License-Identifier: MIT
 
-"""
-TERRASAR-X raster reader support module
----------------------------------------
-"""
+"""TERRASAR-X raster reader support module."""
 
 from __future__ import annotations
 

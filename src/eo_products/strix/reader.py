@@ -1,10 +1,7 @@
 # SPDX-FileCopyrightText: Aresys S.r.l. <info@aresys.it>
 # SPDX-License-Identifier: MIT
 
-"""
-Synspective StriX L1 product format reader
-------------------------------------------
-"""
+"""Synspective StriX L1 product format reader."""
 
 from __future__ import annotations
 

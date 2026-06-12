@@ -1,10 +1,7 @@
 # SPDX-FileCopyrightText: Aresys S.r.l. <info@aresys.it>
 # SPDX-License-Identifier: MIT
 
-"""
-TERRASAR-X product format reader
---------------------------------
-"""
+"""TERRASAR-X product format reader."""
 
 from __future__ import annotations
 

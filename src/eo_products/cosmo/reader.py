@@ -1,10 +1,7 @@
 # SPDX-FileCopyrightText: Aresys S.r.l. <info@aresys.it>
 # SPDX-License-Identifier: MIT
 
-"""
-COSMO product format reader
----------------------------
-"""
+"""COSMO product format reader."""
 
 from __future__ import annotations
 

@@ -1,10 +1,7 @@
 # SPDX-FileCopyrightText: Aresys S.r.l. <info@aresys.it>
 # SPDX-License-Identifier: MIT
 
-"""
-TERRASAR-X reader support module
---------------------------------
-"""
+"""TERRASAR-X reader support module."""
 
 import re
 from dataclasses import dataclass

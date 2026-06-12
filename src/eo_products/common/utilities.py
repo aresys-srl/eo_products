@@ -1,10 +1,7 @@
 # SPDX-FileCopyrightText: Aresys S.r.l. <info@aresys.it>
 # SPDX-License-Identifier: MIT
 
-"""
-Common Enum, dataclasses and other utilities
---------------------------------------------
-"""
+"""Common Enum, dataclasses and other utilities."""
 
 from __future__ import annotations
 

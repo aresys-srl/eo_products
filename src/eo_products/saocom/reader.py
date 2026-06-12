@@ -1,10 +1,7 @@
 # SPDX-FileCopyrightText: Aresys S.r.l. <info@aresys.it>
 # SPDX-License-Identifier: MIT
 
-"""
-SAOCOM product format reader
-----------------------------
-"""
+"""SAOCOM product format reader."""
 
 from __future__ import annotations
 

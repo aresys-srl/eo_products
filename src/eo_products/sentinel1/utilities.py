@@ -1,10 +1,7 @@
 # SPDX-FileCopyrightText: Aresys S.r.l. <info@aresys.it>
 # SPDX-License-Identifier: MIT
 
-"""
-Sentinel-1 SAFE reader support module
--------------------------------------
-"""
+"""Sentinel-1 SAFE reader support module."""
 
 from __future__ import annotations
 

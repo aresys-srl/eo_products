@@ -1,10 +1,7 @@
 # SPDX-FileCopyrightText: Aresys S.r.l. <info@aresys.it>
 # SPDX-License-Identifier: MIT
 
-"""
-RADARSAT-2 reader support module
---------------------------------
-"""
+"""RADARSAT-2 reader support module."""
 
 from __future__ import annotations
 

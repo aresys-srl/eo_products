@@ -1,10 +1,7 @@
 # SPDX-FileCopyrightText: Aresys S.r.l. <info@aresys.it>
 # SPDX-License-Identifier: MIT
 
-"""
-NOVASAR product format reader
------------------------------
-"""
+"""NOVASAR-1 product format reader."""
 
 from __future__ import annotations
 

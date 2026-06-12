@@ -1,10 +1,7 @@
 # SPDX-FileCopyrightText: Aresys S.r.l. <info@aresys.it>
 # SPDX-License-Identifier: MIT
 
-"""
-NOVASAR reader support module
------------------------------
-"""
+"""NOVASAR-1 reader support module."""
 
 from __future__ import annotations
 
