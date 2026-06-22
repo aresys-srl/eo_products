@@ -4,12 +4,25 @@ on:
   workflow_dispatch:
 
   push:
+    branches:
+      - main
     tags:
       - "eo-products-v*"
     paths:
       - ".github/workflows/eo_products.yml"
       - "src/eo_products/**"
       - "tests/**"
+      - "noxfile.py"
+      - "pyproject.toml"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/eo_products.yml"
+      - "src/eo_products/**"
+      - "tests/**"
+      - "noxfile.py"
       - "pyproject.toml"
 
 jobs:
