@@ -41,4 +41,4 @@ EO Products currently supports the following SAR products:
 - **COSMO SkyMed**: SLC, GRD products
 - **RADARSAT-2**: SLC, GRD products [scansar, stripmap]
 - **TerraSAR-X**: SLC and GRD products [scansar (GRD only), stripmap]
-- **STRIX (Synspective)**: SLC and GRD products [stripmap, spotlight]
+- **STRIX (Synspective)**: SLC products [stripmap, spotlight]
