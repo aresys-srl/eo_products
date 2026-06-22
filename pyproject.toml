@@ -36,8 +36,13 @@ classifiers = [
     "Typing :: Typed",
 ]
 
+[project.urls]
+Homepage = "https://github.com/aresys-srl/eo_products"
+Repository = "https://github.com/aresys-srl/eo_products"
+Documentation = "https://aresys-srl.github.io/eo_products"
+
 [project.optional-dependencies]
-dev = ["ruff", "pylint"]
+dev = ["ruff", "pylint", "nox"]
 test = ["unittest-xml-reporting", "coverage"]
 docs = ["zensical", "mkdocstrings-python"]
 
