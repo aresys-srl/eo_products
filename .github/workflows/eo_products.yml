@@ -6,7 +6,6 @@ on:
   push:
     tags:
       - "eo-products-v*"
-      - "docs-v*"
     paths:
       - ".github/workflows/eo_products.yml"
       - "src/eo_products/**"
@@ -107,7 +106,7 @@ jobs:
           retention-days: 14
 
   docs_publish:
-    if: startsWith(github.ref_name, 'docs-v')
+    if: startsWith(github.ref_name, 'eo-products-v')
     needs: docs_build
 
     runs-on: ubuntu-latest
