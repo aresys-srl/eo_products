@@ -126,6 +126,7 @@ jobs:
     needs:
       - sdist
       - wheel
+      - analysis
 
     runs-on: ubuntu-latest
 
