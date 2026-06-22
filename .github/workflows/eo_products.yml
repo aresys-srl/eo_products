@@ -77,18 +77,8 @@ jobs:
           path: dist/*.whl
           retention-days: 14
 
-  docs:
-    if: startsWith(github.ref_name, 'eo-products-v')
+  docs_build:
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - uses: actions/checkout@v5
@@ -107,6 +97,35 @@ jobs:
         run: |
           python -m nox -s build_doc
           ls -la site/
+
+      - name: Upload docs site
+        uses: actions/upload-artifact@v5
+        with:
+          name: docs-site
+          path: site/
+          retention-days: 14
+
+  docs_publish:
+    if: startsWith(github.ref_name, 'eo-products-v')
+    needs: docs_build
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Download docs site
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-site
+          path: site
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
