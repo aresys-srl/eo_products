@@ -46,7 +46,7 @@ pip install eo-products
 
 ## Documentation
 
-Full documentation is available at [https://aresys-srl.github.io/eo_products](https://aresys-srl.github.io/eo_products).
+Full documentation is available at [https://opensource.aresys.it/eo_products](https://opensource.aresys.it/eo_products).
 
 ## Contributing
 

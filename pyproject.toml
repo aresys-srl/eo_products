@@ -39,7 +39,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/aresys-srl/eo_products"
 Repository = "https://github.com/aresys-srl/eo_products"
-Documentation = "https://aresys-srl.github.io/eo_products"
+Documentation = "https://opensource.aresys.it/eo_products"
 
 [project.optional-dependencies]
 dev = ["ruff", "pylint", "nox"]
