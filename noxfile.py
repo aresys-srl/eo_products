@@ -18,9 +18,33 @@ _LICENSE_HEADER = """# SPDX-FileCopyrightText: Aresys S.r.l. <info@aresys.it>
 """
 
 PROJECT = "eo_products"
-PY_VERSIONS = ["3.11", "3.12", "3.13"]
+PY_VERSIONS = ["3.11", "3.12", "3.13", "3.14"]
 WIN32 = sys.platform == "win32"
 PLATFORM = "win" if WIN32 else "linux"
+
+
+def pytest_executor(session: nox.Session, project: str) -> None:
+    """Executor of pytest from nox session.
+
+    Parameters
+    ----------
+    session : nox.Session
+        nox session
+    project : str
+        project name, with "-" as separator for namespace sub-packages
+    """
+    Path("_build").mkdir(exist_ok=True)
+    project = project.replace("-", "_")
+    session.install("-e", ".[test]", silent=True)
+    # run pytest with coverage and JUnit XML output
+    session.run(
+        "python",
+        "-m",
+        "pytest",
+        "./tests/",
+        f"--junitxml=_build/pytest-report-{PLATFORM}-py{session.python}.xml",
+        f"--cov-report=xml:_build/pytest-coverage-{PLATFORM}-py{session.python}.xml",
+    )
 
 
 @nox.session()
@@ -60,32 +84,10 @@ def pylint(session: nox.Session):
 
 
 @nox.session(python=PY_VERSIONS)
-def unittest(session: nox.Session):
-    """Execute unittest"""
-    Path("_build").mkdir(exist_ok=True)
-
-    session.install("-e", ".[test]")
-    session.run(
-        "python",
-        "-m",
-        "coverage",
-        "run",
-        "--source=eo_products",
-        "-m",
-        "xmlrunner",
-        "--output-file",
-        f"_build/unittest-report-{PLATFORM}-py{session.python}.xml",
-        "discover",
-    )
-    session.run("python", "-m", "coverage", "report", "-m")
-    session.run(
-        "python",
-        "-m",
-        "coverage",
-        "xml",
-        "-o",
-        f"_build/unittest-coverage-{PLATFORM}-py{session.python}.xml",
-    )
+def pytest(session: nox.Session):
+    """Module testing with pytest"""
+    cwd = Path.cwd()
+    pytest_executor(session, project=cwd.name)
 
 
 @nox.session()
