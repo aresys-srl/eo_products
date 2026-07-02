@@ -28,6 +28,8 @@ def read_channel_metadata(file_path: Path | str, channel_id: str) -> support.ICE
     ----------
     file_path : Path | str
         Path to the metadata file, could be an .xml (GRD) or a .h5 file (SLC)
+    channel_id : str
+        selected channel id
 
     Returns
     -------
