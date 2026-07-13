@@ -1,6 +1,6 @@
 [project]
 name = "eo_products"
-description = "Collection of SAR Earth Observation L1 Product Formats readers."
+description = "Collection of SAR Earth Observation L1 Product Formats and Auxiliary Data readers."
 authors = [{ name = "Aresys S.R.L.", email = "info@aresys.it" }]
 requires-python = ">=3.11"
 readme = "README.md"
