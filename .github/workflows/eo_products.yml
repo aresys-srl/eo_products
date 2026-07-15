@@ -167,19 +167,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Download wheels and sdist
-        uses: actions/download-artifact@v4
+      - name: Download wheel
+        uses: actions/download-artifact@v5
         with:
+          name: wheel
           path: dist
-          merge-multiple: true
 
-      - name: Clean dist
-        run: |
-          find dist -type f ! -name "*.whl" ! -name "*.tar.gz" -delete
+      - name: Download sdist
+        uses: actions/download-artifact@v5
+        with:
+          name: sdist
+          path: dist
 
-      - name: Show artifacts
+      - name: Show dist
         run: |
-          find dist -type f -maxdepth 2
+          find dist -print
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
