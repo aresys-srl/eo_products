@@ -253,6 +253,7 @@ def read_channel_metadata(
     return support.S1ChannelMetadata(
         general_info=general_info,
         orbit=state_vectors.orbit,
+        image_radiometric_quantity=SARRadiometricQuantity.BETA_NOUGHT,
         attitude=attitude,
         burst_info=burst_info,
         raster_info=raster_info,

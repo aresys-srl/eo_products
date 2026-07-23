@@ -1278,6 +1278,7 @@ class S1ChannelMetadata:
 
     general_info: S1GeneralChannelInfo
     orbit: Trajectory
+    image_radiometric_quantity: SARRadiometricQuantity
     attitude: S1Attitude
     burst_info: BurstInfo
     raster_info: RasterInfo

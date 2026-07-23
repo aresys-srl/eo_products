@@ -8,6 +8,12 @@ tags:
 
 # Changelog
 
+## v1.1.1
+
+**Other Changes**
+
+- Added image radiometric quantity to Sentinel-1 L1 channel metadata dataclass
+
 ## v1.1.0
 
 **New Features**
