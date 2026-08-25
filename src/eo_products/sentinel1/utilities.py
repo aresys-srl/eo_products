@@ -724,7 +724,11 @@ def _get_noise_vector_at(
         )
         range_noise_vector = (1 - interp_weight) * range_noise_vector_0 + interp_weight * range_noise_vector_1
     else:
-        range_noise_vector = range_noise_vectors[noise_vector_idx]
+        range_noise_vector = np.interp(
+            np.arange(0, azimuth_noise_factor.size),
+            range_noise_vectors[noise_vector_idx].pixels,
+            range_noise_vectors[noise_vector_idx].lut,
+        )
     return range_noise_vector * azimuth_noise_factor
 
 
