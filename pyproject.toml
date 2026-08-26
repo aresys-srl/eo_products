@@ -44,9 +44,9 @@ Repository = "https://github.com/aresys-srl/eo_products"
 Documentation = "https://opensource.aresys.it/eo_products"
 
 [project.optional-dependencies]
-dev = ["ruff", "pylint", "nox"]
+dev = ["ruff", "pylint"]
 test = ["pytest>8.0.0", "pytest-cov>7.0.0"]
-docs = ["zensical", "mkdocstrings-python"]
+doc = ["zensical", "mkdocstrings-python"]
 
 [build-system]
 requires = ["hatchling"]
