@@ -67,7 +67,7 @@ jobs:
 
       - run: echo "/opt/python/cp312-cp312/bin" >> $GITHUB_PATH
       - run: uv build --sdist --wheel .
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -87,12 +87,12 @@ jobs:
 
       - run: python -m pip install ".[doc]"
       - run: python tools/build_doc.py
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: documentation-site
           path: site/
           retention-days: 14
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: documentation-archive
           path: documentation*.zip
