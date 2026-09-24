@@ -8,6 +8,12 @@ tags:
 
 # Changelog
 
+## v1.1.2
+
+**Bug fixes**
+
+- Fixed bug in Sentinel-1 external orbit reader
+
 ## v1.1.1
 
 **Other Changes**

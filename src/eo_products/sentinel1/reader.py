@@ -94,7 +94,7 @@ def read_external_orbit(
             time_axis=time_axis,
             positions=positions,
             velocities=velocities,
-            frame=reference_frame,
+            reference_frame=reference_frame,
             time_step=time_delta,
             orbit_type=orbit_type,
         )
