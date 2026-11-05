@@ -3,6 +3,7 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](https://python.org)
 [![PyPI version](https://img.shields.io/pypi/v/eo-products)](https://pypi.org/project/eo-products/)
+[![EO Products CI](https://github.com/aresys-srl/sct/actions/workflows/eo_products.yml/badge.svg)](https://github.com/aresys-srl/eo_products/actions/workflows/eo_products.yml)
 
 **EO Products** is a Python package designed to simplify access to **Level-1 Synthetic Aperture Radar** (SAR) Earth Observation
 products and SAR auxiliary data, such as **Digital Elevation Model** (DEM) products.
