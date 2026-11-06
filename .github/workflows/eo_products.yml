@@ -8,20 +8,27 @@ on:
       - main
     tags:
       - "eo-products-v*"
+      - "docs-v*"
     paths:
       - ".github/workflows/eo_products.yml"
-      - "src/eo_products/**"
+      - "src/**"
       - "tests/**"
+      - "docs/**"
+      - "overrides/**"
       - "pyproject.toml"
+      - "zensical.toml"
 
   pull_request:
     branches:
       - main
     paths:
       - ".github/workflows/eo_products.yml"
-      - "src/eo_products/**"
+      - "src/**"
       - "tests/**"
+      - "docs/**"
+      - "overrides/**"
       - "pyproject.toml"
+      - "zensical.toml"
 
 jobs:
   ruff:
@@ -73,7 +80,7 @@ jobs:
           path: dist/
           retention-days: 14
 
-  docs_build:
+  doc_build:
     runs-on: ubuntu-latest
 
     steps:
@@ -85,48 +92,13 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: python -m pip install ".[doc]"
+      - run: python -m pip install ".[docs]"
       - run: python tools/build_doc.py
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: documentation-site
           path: site/
           retention-days: 14
-      - uses: actions/upload-artifact@v5
-        with:
-          name: documentation-archive
-          path: documentation*.zip
-          retention-days: 14
-
-  docs_publish:
-    if: startsWith(github.ref_name, 'eo-products-v')
-    needs: docs_build
-
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-
-    steps:
-      - name: Download docs site
-        uses: actions/download-artifact@v8
-        with:
-          name: documentation-site
-          path: site
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v6
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: site
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
 
   publish:
     needs: [ruff, pylint, build]
@@ -158,3 +130,39 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
+
+  publish_docs:
+    needs: [doc_build, publish]
+    if: >
+      ${{
+        !cancelled() &&
+        (startsWith(github.ref_name, 'eo-products-v') || startsWith(github.ref_name, 'docs-v')) &&
+        needs.doc_build.result == 'success' &&
+        (needs.publish.result == 'success' || needs.publish.result == 'skipped')
+      }}
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Download docs site
+        uses: actions/download-artifact@v8
+        with:
+          name: documentation-site
+          path: site
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
