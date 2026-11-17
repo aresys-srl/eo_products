@@ -8,6 +8,16 @@ tags:
 
 # Changelog
 
+## Unreleased
+
+**New Features**
+
+- ICEYE: support for SLC-COG and GRD-COG products (Cloud Optimized GeoTiff + STAC .json metadata), read into the same
+  channel metadata dataclasses of legacy ICEYE products. Azimuth timing is derived from the zero Doppler start/end
+  times, the Doppler rate is computed from the orbit (the annotated `iceye:doppler_rate_coeffs` is not an azimuth FM
+  rate), raster bands are decoded (GDAL scale/offset, amplitude mapping) and reoriented to the legacy (azimuth time,
+  range) convention for both look sides.
+
 ## v1.1.2
 
 **Bug fixes**
