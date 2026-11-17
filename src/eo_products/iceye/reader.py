@@ -14,6 +14,7 @@ import zarr
 from lxml import etree
 
 import eo_products.iceye.cog_utilities as cog_support
+import eo_products.iceye.raster as raster_support
 import eo_products.iceye.utilities as support
 
 
@@ -87,6 +88,9 @@ def read_channel_metadata(file_path: Path | str, channel_id: str) -> support.ICE
     # coordinates conversion
     coordinate_conversions = support.coordinates_conversions_from_metadata(root=root)
 
+    # raster layout, defined only for shadows-down legacy GRD rasters
+    raster_layout = support.raster_layout_from_metadata(root=root)
+
     if hdf5_flag:
         # closing hdf5 file
         root.close()
@@ -107,6 +111,7 @@ def read_channel_metadata(file_path: Path | str, channel_id: str) -> support.ICE
         incidence_angles_poly=incidence_angle_poly,
         sampling_constants=sampling_constants,
         pulse=pulse,
+        raster_layout=raster_layout,
     )
 
 
@@ -114,10 +119,11 @@ def read_channel_data(
     raster_file: str | Path,
     block_to_read: list[int] = None,
     scaling_conversion: float = 1,
-    raster_layout: support.ICEYECOGRasterLayout | None = None,
+    raster_layout: support.ICEYERasterLayout | None = None,
 ) -> np.ndarray:
     """Reading ICEYE data file. It can be a GeoTiff .tif file (for GRD products), an HDF5 .h5 file (for SLC) or a
-    Cloud Optimized GeoTiff .tif file (for SLC-COG and GRD-COG products, if raster_layout is provided).
+    Cloud Optimized GeoTiff .tif file (for SLC-COG and GRD-COG products). Shadows-down rasters (COG products and
+    shadows-down legacy GRD products) require their raster_layout.
 
     Parameters
     ----------
@@ -134,8 +140,8 @@ def read_channel_data(
         if None, the whole raster is read, by default None
     scaling_conversion : float, optional
         scaling conversion to be applied to the data read
-    raster_layout : support.ICEYECOGRasterLayout | None, optional
-        raster layout of COG products (ICEYEChannelMetadata.raster_layout), None for legacy products,
+    raster_layout : support.ICEYERasterLayout | None, optional
+        raster layout of shadows-down rasters (ICEYEChannelMetadata.raster_layout), None for native rasters,
         by default None
 
     Returns
@@ -145,8 +151,8 @@ def read_channel_data(
     """
     raster_file = Path(raster_file)
     if raster_layout is not None:
-        # SLC-COG and GRD-COG case: decoded and reoriented to the (lines, samples) convention of legacy products
-        target_area = cog_support.read_cog_raster(
+        # shadows-down rasters (COG, shadows-down legacy GRD): decoded and reoriented to (lines, samples)
+        target_area = raster_support.read_shadows_down_raster(
             raster_file=raster_file, raster_layout=raster_layout, block_to_read=block_to_read
         )
         return target_area * scaling_conversion

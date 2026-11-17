@@ -14,7 +14,7 @@ from perseo_core.timing import PreciseDateTime
 from scipy.constants import speed_of_light
 
 from eo_products.common.utilities import SARProjection, SARRadiometricQuantity
-from eo_products.iceye.cog_utilities import read_cog_raster
+from eo_products.iceye.raster import read_shadows_down_raster
 from eo_products.iceye.reader import open_product, read_channel_data, read_channel_metadata
 from eo_products.iceye.utilities import (
     ICEYEProductFormat,
@@ -229,12 +229,12 @@ def test_read_slc_cog_orientation(tmp_path, look, planar):
     _, _, meta, raster = _channel(tmp_path)
     expected = _expected_slc(look)
 
-    full = read_cog_raster(raster, meta.raster_layout)
+    full = read_shadows_down_raster(raster, meta.raster_layout)
     assert full.dtype == np.complex64
     np.testing.assert_allclose(full, expected, rtol=1e-6)
 
     for block in ([0, 0, 10, 7], [86, 57, 10, 7], [40, 0, 1, 64], [0, 63, 96, 1], [17, 23, 31, 29]):
-        data = read_cog_raster(raster, meta.raster_layout, block)
+        data = read_shadows_down_raster(raster, meta.raster_layout, block)
         np.testing.assert_array_equal(data, full[block[0] : block[0] + block[2], block[1] : block[1] + block[3]])
 
 
@@ -244,7 +244,7 @@ def test_read_channel_data_cog_applies_scaling(tmp_path):
     block = [5, 6, 20, 30]
     scaled = read_channel_data(raster, block, meta.image_calibration_factor, raster_layout=meta.raster_layout)
     np.testing.assert_array_equal(
-        scaled, read_cog_raster(raster, meta.raster_layout, block) * meta.image_calibration_factor
+        scaled, read_shadows_down_raster(raster, meta.raster_layout, block) * meta.image_calibration_factor
     )
 
 
@@ -256,14 +256,14 @@ def test_read_grd_cog(tmp_path, look, grd_dtype):
     raw = raster_values("GRD", 64, 96)
     columns = np.arange(96) if look == "right" else 95 - np.arange(96)
     expected = raw[:, columns].T.astype(np.float32) * np.float32(GRD_AMPLITUDE_SCALE)
-    np.testing.assert_allclose(read_cog_raster(raster, meta.raster_layout), expected, rtol=1e-6)
+    np.testing.assert_allclose(read_shadows_down_raster(raster, meta.raster_layout), expected, rtol=1e-6)
 
 
 def test_power_amplitude_mapping(tmp_path):
     write_cog_product(tmp_path, amplitude_mapping={"function": "power", "parameters": {"scale": 2.0, "exponent": 0.5}})
     _, _, meta, raster = _channel(tmp_path)
     stored = np.abs(_expected_slc("right"))  # stored (mapped) amplitude y
-    np.testing.assert_allclose(np.abs(read_cog_raster(raster, meta.raster_layout)), stored**2 / 2.0, rtol=1e-5)
+    np.testing.assert_allclose(np.abs(read_shadows_down_raster(raster, meta.raster_layout)), stored**2 / 2.0, rtol=1e-5)
 
 
 @pytest.mark.parametrize(

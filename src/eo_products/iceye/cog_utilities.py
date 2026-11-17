@@ -14,7 +14,6 @@ from pathlib import Path
 
 import numpy as np
 import tifffile
-import zarr
 from lxml import etree
 from numpy.polynomial import Polynomial
 from perseo_core.geometry.geocoding import direct_geocoding_monostatic
@@ -38,16 +37,17 @@ from eo_products.common.utilities import (
     StateVectors,
     SwathInfo,
 )
+from eo_products.iceye.raster import POWER_AMPLITUDE_MAPPING
 from eo_products.iceye.utilities import (
     _COG_PRODUCT_TYPES,
     ICEYEAcquisitionMode,
     ICEYEChannelMetadata,
-    ICEYECOGRasterLayout,
     ICEYEGeneralChannelInfo,
     ICEYEIncidenceAnglePolynomial,
     ICEYEOrbitProcessingLevel,
     ICEYEProductFormat,
     ICEYEProductLevel,
+    ICEYERasterLayout,
     ICEYEStateVectorsReferenceSystem,
     InvalidICEYEProduct,
     burst_info_from_metadata,
@@ -57,7 +57,6 @@ from eo_products.iceye.utilities import (
 
 _SUPPORTED_ORIENTATIONS = ("shadows-down",)
 _IDENTITY_AMPLITUDE_MAPPINGS = ("minmax", "clip")  # values are already linear amplitude
-_POWER_AMPLITUDE_MAPPING = "power"  # y = (scale * A) ** exponent
 _DEFAULT_POWER_EXPONENT = 0.25
 _ACQUISITION_MODES = {
     "spotlight": ICEYEAcquisitionMode.SPOTLIGHT,
@@ -209,8 +208,8 @@ def _parse_gdal_band_scaling(gdal_metadata: str | None, bands: int) -> tuple[lis
     return scales, offsets
 
 
-def cog_raster_layout(properties: dict, raster_file: Path) -> ICEYECOGRasterLayout:
-    """Raster layout of an ICEYE COG product, from STAC properties and GeoTiff tags.
+def cog_raster_layout(properties: dict, raster_file: Path) -> ICEYERasterLayout:
+    """Raster layout of an ICEYE COG product (shadows-down storage), from STAC properties and GeoTiff tags.
 
     Parameters
     ----------
@@ -221,7 +220,7 @@ def cog_raster_layout(properties: dict, raster_file: Path) -> ICEYECOGRasterLayo
 
     Returns
     -------
-    ICEYECOGRasterLayout
+    ICEYERasterLayout
         COG raster layout
     """
     product_level = product_level_from_stac(properties)
@@ -247,14 +246,14 @@ def cog_raster_layout(properties: dict, raster_file: Path) -> ICEYECOGRasterLayo
     mapping = properties.get("iceye:amplitude_mapping") or {}
     mapping_function = mapping.get("function", "minmax")
     parameters = mapping.get("parameters") or {}
-    if mapping_function == _POWER_AMPLITUDE_MAPPING:
+    if mapping_function == POWER_AMPLITUDE_MAPPING:
         exponent = float(parameters.get("exponent", _DEFAULT_POWER_EXPONENT))
     elif mapping_function in _IDENTITY_AMPLITUDE_MAPPINGS:
         exponent = float(parameters.get("exponent", 1.0))
     else:
         raise InvalidICEYEProduct(f"unsupported amplitude mapping function {mapping_function!r}")
 
-    return ICEYECOGRasterLayout(
+    return ICEYERasterLayout(
         product_level=product_level,
         look_side=properties["sar:observation_direction"].upper(),
         azimuth_lines=cols,
@@ -302,7 +301,7 @@ def general_info_from_stac(properties: dict, channel_id: str) -> ICEYEGeneralCha
     )
 
 
-def raster_info_from_stac(properties: dict, raster_layout: ICEYECOGRasterLayout) -> RasterInfo:
+def raster_info_from_stac(properties: dict, raster_layout: ICEYERasterLayout) -> RasterInfo:
     """Creating a RasterInfo object from STAC properties.
 
     Azimuth lines are spaced by (zero Doppler end - zero Doppler start) / (lines - 1), i.e. the zero Doppler times of
@@ -312,7 +311,7 @@ def raster_info_from_stac(properties: dict, raster_layout: ICEYECOGRasterLayout)
     ----------
     properties : dict
         STAC item properties
-    raster_layout : ICEYECOGRasterLayout
+    raster_layout : ICEYERasterLayout
         COG raster layout
 
     Returns
@@ -724,88 +723,3 @@ def calibration_factor_and_radiometric_quantity_from_stac(properties: dict) -> t
         radiometric quantity
     """
     return np.sqrt(float(properties["iceye:calibration_factor"])), SARRadiometricQuantity.BETA_NOUGHT
-
-
-def _invert_amplitude_mapping(values: np.ndarray, raster_layout: ICEYECOGRasterLayout) -> np.ndarray:
-    """Converting stored amplitude values back to linear amplitude."""
-    if raster_layout.amplitude_mapping_function == _POWER_AMPLITUDE_MAPPING:
-        return np.power(values, 1 / raster_layout.amplitude_mapping_exponent) / raster_layout.amplitude_mapping_scale
-    return values
-
-
-def decode_cog_bands(data: np.ndarray, raster_layout: ICEYECOGRasterLayout) -> np.ndarray:
-    """Decoding COG band values to complex samples (SLC-COG) or amplitude (GRD-COG).
-
-    Parameters
-    ----------
-    data : np.ndarray
-        raw band values, with bands along the last axis (SLC-COG) or without band axis (GRD-COG)
-    raster_layout : ICEYECOGRasterLayout
-        COG raster layout
-
-    Returns
-    -------
-    np.ndarray
-        complex samples (SLC-COG) or amplitude (GRD-COG), float32 precision
-    """
-
-    def _scaled(band: np.ndarray, index: int) -> np.ndarray:
-        return band.astype(np.float32) * raster_layout.band_scales[index] + raster_layout.band_offsets[index]
-
-    if raster_layout.product_level == ICEYEProductLevel.GRD:
-        band = data[..., 0] if data.ndim == 3 else data
-        return _invert_amplitude_mapping(_scaled(band, 0), raster_layout)
-
-    amplitude = _invert_amplitude_mapping(_scaled(data[..., 0], 0), raster_layout)
-    phase = _scaled(data[..., 1], 1)
-    samples = np.empty(amplitude.shape, dtype=np.complex64)
-    samples.real = amplitude * np.cos(phase)
-    samples.imag = amplitude * np.sin(phase)
-    return samples
-
-
-def read_cog_raster(
-    raster_file: Path | str, raster_layout: ICEYECOGRasterLayout, block_to_read: list[int] | None = None
-) -> np.ndarray:
-    """Reading and decoding a block of an ICEYE COG raster, in the (lines, samples) convention of legacy products.
-
-    Lines are azimuth lines in increasing time order, samples are range samples from near to far range.
-
-    Parameters
-    ----------
-    raster_file : Path | str
-        path to the COG raster file
-    raster_layout : ICEYECOGRasterLayout
-        COG raster layout
-    block_to_read : list[int] | None, optional
-        data block to be read, as [first line, first sample, number of lines, number of samples],
-        if None, the whole raster is read, by default None
-
-    Returns
-    -------
-    np.ndarray
-        decoded data with shape (lines, samples)
-    """
-    if block_to_read is None:
-        block_to_read = [0, 0, raster_layout.azimuth_lines, raster_layout.range_samples]
-    first_line, first_sample, lines, samples = (int(v) for v in block_to_read)
-    first_column = raster_layout.azimuth_lines - first_line - lines if raster_layout.azimuth_reversed else first_line
-
-    img_store = tifffile.imread(raster_file, aszarr=True, level=0)
-    try:
-        raster = zarr.open(img_store, mode="r")
-        bands = len(raster_layout.band_scales)
-        if raster.ndim == 3 and raster.shape[0] == bands and raster.shape[-1] != bands:
-            # planar configuration: bands first
-            data = np.moveaxis(
-                raster[:, first_sample : first_sample + samples, first_column : first_column + lines], 0, -1
-            )
-        else:
-            data = raster[first_sample : first_sample + samples, first_column : first_column + lines]
-    finally:
-        img_store.close()
-
-    if raster_layout.azimuth_reversed:
-        data = data[:, ::-1]
-    # (samples, lines) -> (lines, samples)
-    return decode_cog_bands(np.swapaxes(data, 0, 1), raster_layout)

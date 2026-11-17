@@ -90,12 +90,12 @@ class ICEYEProductFormat(Enum):
 
 
 @dataclass
-class ICEYECOGRasterLayout:
-    """Raster layout of an ICEYE COG product (SLC-COG or GRD-COG).
+class ICEYERasterLayout:
+    """Shadows-down raster layout of ICEYE COG products (SLC-COG, GRD-COG) and of shadows-down legacy GRD products.
 
-    COG rasters store range along rows (near range first) and azimuth along columns. Azimuth columns are in
+    Shadows-down rasters store range along rows (near range first) and azimuth along columns. Azimuth columns are in
     increasing time order for right looking products and in decreasing time order for left looking products.
-    SLC-COG rasters have two bands (amplitude, phase), GRD-COG rasters have a single amplitude band. Band values are
+    SLC rasters have two bands (amplitude, phase), GRD rasters have a single amplitude band. Band values are
     decoded with the GDAL scale/offset and then with the inverse of the annotated amplitude mapping.
     """
 
@@ -167,6 +167,41 @@ def raster_info_from_metadata(root: etree._Element | h5py.File) -> RasterInfo:
     raster_samples = RasterInfoAxis(length=samples, start=samples_start, step=samples_step, step_unit=samples_step_unit)
 
     return RasterInfo(lines=raster_lines, samples=raster_samples, data_type=celltype, raster_name=filename)
+
+
+def raster_layout_from_metadata(root: etree._Element | h5py.File) -> ICEYERasterLayout | None:
+    """Raster layout of legacy GRD products stored shadows-down (data_orientation "shadows_down"): range along rows
+    and azimuth along columns, as COG products. Native rasters (azimuth along rows) have no layout.
+
+    Parameters
+    ----------
+    root : etree._Element | h5py.File
+        metadata root object
+
+    Returns
+    -------
+    ICEYERasterLayout | None
+        raster layout for shadows-down legacy GRD rasters, None for native rasters and for SLC products
+    """
+    if isinstance(root, h5py.File):
+        # SLC case, native HDF5 datasets
+        return None
+
+    orientation_node = root.find("data_orientation")
+    orientation = "native" if orientation_node is None else orientation_node.text.strip().lower()
+    if orientation == "native":
+        return None
+    if orientation != "shadows_down":
+        raise InvalidICEYEProduct(f"unsupported GRD data_orientation {orientation!r}")
+
+    return ICEYERasterLayout(
+        product_level=ICEYEProductLevel.GRD,
+        look_side=root.find("look_side").text.upper(),
+        azimuth_lines=int(root.find("number_of_azimuth_samples").text),
+        range_samples=int(root.find("number_of_range_samples").text),
+        band_scales=(1.0,),
+        band_offsets=(0.0,),
+    )
 
 
 def burst_info_from_metadata(raster_info: RasterInfo) -> BurstInfo:
@@ -781,7 +816,7 @@ class ICEYEChannelMetadata:
     coordinate_conversions: CoordinatesConversions
     state_vectors: StateVectors
     product_format: ICEYEProductFormat = ICEYEProductFormat.LEGACY
-    raster_layout: ICEYECOGRasterLayout | None = None  # only for COG products
+    raster_layout: ICEYERasterLayout | None = None  # shadows-down rasters only (COG, shadows-down legacy GRD)
 
 
 class ICEYEProduct:

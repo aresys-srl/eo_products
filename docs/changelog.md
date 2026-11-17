@@ -18,6 +18,11 @@ tags:
   rate), raster bands are decoded (GDAL scale/offset, amplitude mapping) and reoriented to the legacy (azimuth time,
   range) convention for both look sides.
 
+**Bug fixes**
+
+- ICEYE GRD: legacy GRD rasters stored shadows-down (`data_orientation` "shadows_down": range along rows, azimuth
+  along columns) are reoriented to the native convention; they were read transposed before
+
 ## v1.1.2
 
 **Bug fixes**
