@@ -582,7 +582,9 @@ class ICEYEIncidenceAnglePolynomial:
     def from_metadata(root: etree._Element | h5py.File) -> ICEYEIncidenceAnglePolynomial:
         """Generating ICEYEIncidenceAnglePolynomial object directly from metadata xml node.
 
-        Evaluated polynomial gives Incidence Angle in deg.
+        Evaluated polynomial gives Incidence Angle in deg, as a function of the range pixel index. GRD metadata annotate
+        the polynomial as a function of the ground range in meters from the first range pixel: it is converted to a
+        function of the range pixel index using the range spacing.
 
         Parameters
         ----------
@@ -599,16 +601,18 @@ class ICEYEIncidenceAnglePolynomial:
             # SLC case
             return ICEYEIncidenceAnglePolynomial()
         else:
-            # GRD case
+            # GRD case: annotated polynomial is a function of the ground range in meters from the first range pixel,
+            # converted here to a function of the range pixel index
             coeff = [float(c.text) for c in root.findall("Incidence_Angle_Coefficients/coefficient/value")]
             ref_time = PreciseDateTime.fromisoformat(root.find("Incidence_Angle_Coefficients/zero_doppler_time").text)
             origin = float(root.find("Incidence_Angle_Coefficients/ground_range_origin").text)
+            range_spacing = float(root.find("range_spacing").text)
 
             incidence_angle_poly_list = [
                 ConversionFunction(
                     azimuth_reference_time=ref_time,
-                    origin=origin,
-                    function=Polynomial(coeff),
+                    origin=origin / range_spacing,
+                    function=Polynomial(np.asarray(coeff) * range_spacing ** np.arange(len(coeff))),
                 )
             ]
 
