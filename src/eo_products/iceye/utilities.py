@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -41,6 +42,10 @@ from eo_products.common.utilities import (
 _GRD_IMAGE_FORMAT = ".tif"
 _GRD_METADATA_EXTENSION = ".xml"
 _SLC_DATA_EXTENSION = ".h5"
+_COG_METADATA_EXTENSION = ".json"
+_COG_IMAGE_FORMATS = (".tif", ".tiff")
+# STAC "sar:product_type" values of ICEYE COG products: older deliveries annotate "SLC"/"GRD" instead of "*-COG"
+_COG_PRODUCT_TYPES = {"SLC-COG": "SLC", "GRD-COG": "GRD", "SLC": "SLC", "GRD": "GRD"}
 
 
 class InvalidICEYEProduct(RuntimeError):
@@ -75,6 +80,39 @@ class ICEYEOrbitProcessingLevel(Enum):
     RAPID = "rapid"
     PRECISE = "precise"
     SCIENTIFIC = "scientific"
+
+
+class ICEYEProductFormat(Enum):
+    """ICEYE product format"""
+
+    LEGACY = "LEGACY"  # SLC: HDF5 .h5 file; GRD: GeoTiff .tif file + .xml metadata file
+    COG = "COG"  # SLC-COG/GRD-COG: Cloud Optimized GeoTiff .tif file + STAC .json metadata file
+
+
+@dataclass
+class ICEYERasterLayout:
+    """Shadows-down raster layout of ICEYE COG products (SLC-COG, GRD-COG) and of shadows-down legacy GRD products.
+
+    Shadows-down rasters store range along rows (near range first) and azimuth along columns. Azimuth columns are in
+    increasing time order for right looking products and in decreasing time order for left looking products.
+    SLC rasters have two bands (amplitude, phase), GRD rasters have a single amplitude band. Band values are
+    decoded with the GDAL scale/offset and then with the inverse of the annotated amplitude mapping.
+    """
+
+    product_level: ICEYEProductLevel
+    look_side: str  # "LEFT" or "RIGHT"
+    azimuth_lines: int  # number of azimuth lines (raster columns)
+    range_samples: int  # number of range samples (raster rows)
+    band_scales: tuple[float, ...]  # GDAL scale for each band
+    band_offsets: tuple[float, ...]  # GDAL offset for each band
+    amplitude_mapping_function: str = "minmax"
+    amplitude_mapping_scale: float = 1.0
+    amplitude_mapping_exponent: float = 1.0
+
+    @property
+    def azimuth_reversed(self) -> bool:
+        """True if raster columns are in decreasing azimuth time order (left looking products)"""
+        return self.look_side == "LEFT"
 
 
 def raster_info_from_metadata(root: etree._Element | h5py.File) -> RasterInfo:
@@ -129,6 +167,41 @@ def raster_info_from_metadata(root: etree._Element | h5py.File) -> RasterInfo:
     raster_samples = RasterInfoAxis(length=samples, start=samples_start, step=samples_step, step_unit=samples_step_unit)
 
     return RasterInfo(lines=raster_lines, samples=raster_samples, data_type=celltype, raster_name=filename)
+
+
+def raster_layout_from_metadata(root: etree._Element | h5py.File) -> ICEYERasterLayout | None:
+    """Raster layout of legacy GRD products stored shadows-down (data_orientation "shadows_down"): range along rows
+    and azimuth along columns, as COG products. Native rasters (azimuth along rows) have no layout.
+
+    Parameters
+    ----------
+    root : etree._Element | h5py.File
+        metadata root object
+
+    Returns
+    -------
+    ICEYERasterLayout | None
+        raster layout for shadows-down legacy GRD rasters, None for native rasters and for SLC products
+    """
+    if isinstance(root, h5py.File):
+        # SLC case, native HDF5 datasets
+        return None
+
+    orientation_node = root.find("data_orientation")
+    orientation = "native" if orientation_node is None else orientation_node.text.strip().lower()
+    if orientation == "native":
+        return None
+    if orientation != "shadows_down":
+        raise InvalidICEYEProduct(f"unsupported GRD data_orientation {orientation!r}")
+
+    return ICEYERasterLayout(
+        product_level=ICEYEProductLevel.GRD,
+        look_side=root.find("look_side").text.upper(),
+        azimuth_lines=int(root.find("number_of_azimuth_samples").text),
+        range_samples=int(root.find("number_of_range_samples").text),
+        band_scales=(1.0,),
+        band_offsets=(0.0,),
+    )
 
 
 def burst_info_from_metadata(raster_info: RasterInfo) -> BurstInfo:
@@ -742,6 +815,8 @@ class ICEYEChannelMetadata:
     pulse: PulseInfo
     coordinate_conversions: CoordinatesConversions
     state_vectors: StateVectors
+    product_format: ICEYEProductFormat = ICEYEProductFormat.LEGACY
+    raster_layout: ICEYERasterLayout | None = None  # shadows-down rasters only (COG, shadows-down legacy GRD)
 
 
 class ICEYEProduct:
@@ -806,9 +881,11 @@ class ICEYEProduct:
     def get_files_from_channel_name(self, channel_name: str) -> list[Path]:
         """Get files associated to a given channel name.
 
-        GRD channels will return a list of two paths: .xml metadata file, .tif GeoTiff raster file
+        GRD channels will return a list of two paths: .tif GeoTiff raster file, .xml metadata file
 
         SLC channels will return a list of a single path: .h5 HDF5 file
+
+        SLC-COG and GRD-COG channels will return a list of two paths: .tif COG raster file, .json STAC metadata file
 
         Parameters
         ----------
@@ -830,6 +907,8 @@ def _find_valid_channels(product_path: Path) -> dict[str, list[Path]] | None:
 
     SLC channels: one file [dataset HDF5 .h5 file]
 
+    SLC-COG and GRD-COG channels: two files [Cloud Optimized GeoTiff .tif file, STAC .json metadata file]
+
     ICEYE product consists in a GRD channel and an SLC channel: if a single valid channel is found, the product is
     still considered valid
 
@@ -850,11 +929,18 @@ def _find_valid_channels(product_path: Path) -> dict[str, list[Path]] | None:
     # searching for valid SLC channel: HDF5 .h5 file
     slc_dict = _find_slc_channel(product_path=product_path)
 
+    # searching for valid SLC-COG and GRD-COG channels: COG .tif file + STAC .json metadata
+    cog_dict = _find_cog_channels(product_path=product_path)
+
     out_dict = dict()
     if grd_dict is not None:
         out_dict.update(grd_dict)
     if slc_dict is not None:
         out_dict.update(slc_dict)
+    if cog_dict is not None:
+        for channel_name, channel_files in cog_dict.items():
+            # a legacy channel with the same name in the same folder takes the plain name
+            out_dict[channel_name + "_cog" if channel_name in out_dict else channel_name] = channel_files
 
     return out_dict if out_dict else None
 
@@ -910,6 +996,109 @@ def _find_slc_channel(product_path: Path) -> dict[str, list[Path]] | None:
     slc_channel_name = _slc_channel_name_definition(slc_file[0])
 
     return {slc_channel_name: slc_file}
+
+
+def read_stac_item(metadata_file: Path) -> dict | None:
+    """Read an ICEYE COG STAC .json metadata file.
+
+    Parameters
+    ----------
+    metadata_file : Path
+        path to the .json file
+
+    Returns
+    -------
+    dict | None
+        STAC item dictionary, None if the file is not an ICEYE COG STAC item
+    """
+    try:
+        item = json.loads(Path(metadata_file).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(item, dict) or not isinstance(item.get("properties"), dict):
+        return None
+    if item["properties"].get("sar:product_type") not in _COG_PRODUCT_TYPES:
+        return None
+    return item
+
+
+def cog_raster_file_from_stac_item(item: dict, metadata_file: Path) -> Path | None:
+    """Locate the COG raster file of an ICEYE COG STAC item.
+
+    The raster is the asset with role "data" and a GeoTiff media type. If no such asset is annotated, a GeoTiff with
+    the same stem of the metadata file is searched.
+
+    Parameters
+    ----------
+    item : dict
+        STAC item dictionary
+    metadata_file : Path
+        path to the STAC .json file
+
+    Returns
+    -------
+    Path | None
+        path to the COG raster file, None if not found
+    """
+    metadata_file = Path(metadata_file)
+    for asset in item.get("assets", {}).values():
+        if "data" in asset.get("roles", []) and "tiff" in asset.get("type", "") and "href" in asset:
+            candidate = metadata_file.parent.joinpath(asset["href"])
+            if candidate.is_file():
+                return candidate
+    for suffix in _COG_IMAGE_FORMATS:
+        candidate = metadata_file.with_suffix(suffix)
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _find_cog_channels(product_path: Path) -> dict[str, list[Path]] | None:
+    """Find valid SLC-COG and GRD-COG ICEYE channels in input product.
+
+    Parameters
+    ----------
+    product_path : Path
+        Path to the ICEYE product folder
+
+    Returns
+    -------
+    dict[str, list[Path]] | None
+        dictionary of channel name as key, list of .tif and .json files as value,
+        None if no valid channel has been found
+    """
+    channels = {}
+    for metadata_file in sorted(product_path.glob("*" + _COG_METADATA_EXTENSION)):
+        item = read_stac_item(metadata_file)
+        if item is None:
+            continue
+        raster_file = cog_raster_file_from_stac_item(item, metadata_file)
+        if raster_file is None:
+            continue
+        channels[_cog_channel_name_definition(item["properties"])] = [raster_file, metadata_file]
+
+    return channels if channels else None
+
+
+def _cog_channel_name_definition(properties: dict) -> str:
+    """Generating SLC-COG/GRD-COG channel name from STAC properties.
+    Name is composed as: product level + acq_mode + polarization, as for legacy products
+
+    Parameters
+    ----------
+    properties : dict
+        STAC item properties
+
+    Returns
+    -------
+    str
+        channel name
+    """
+    product_level = _COG_PRODUCT_TYPES[properties["sar:product_type"]]
+    acquisition_mode = properties["sar:instrument_mode"]
+    polarization = properties["sar:polarizations"][0]
+
+    return "_".join([product_level.lower(), acquisition_mode.lower(), polarization.lower()])
 
 
 def _grd_channel_name_definition(metadata_file: Path) -> str:
@@ -994,16 +1183,22 @@ def _retrieve_acquisition_time(arg_in: list[Path]) -> PreciseDateTime:
         acq_time_slc = PreciseDateTime.fromisoformat(mtd["acquisition_start_utc"][()].decode())
         mtd.close()
 
+    acq_times_cog = []
+    for json_file in [f for f in arg_in if str(f).endswith(_COG_METADATA_EXTENSION)]:
+        item = read_stac_item(json_file)
+        if item is not None:
+            acq_times_cog.append(PreciseDateTime.fromisoformat(item["properties"]["start_datetime"]))
+
     if acq_time_grd is not None and acq_time_slc is not None:
         # checking that acquisition times in both GRD and SLC are very close
         assert abs(acq_time_grd.sec85 - acq_time_slc.sec85) < 100
-        return acq_time_grd
 
-    if acq_time_grd is not None:
-        return acq_time_grd
-
-    if acq_time_slc is not None:
-        return acq_time_slc
+    acq_times = [t for t in (acq_time_grd, acq_time_slc) if t is not None] + acq_times_cog
+    if not acq_times:
+        return None
+    # checking that acquisition times of all channels are very close
+    assert all(abs(t.sec85 - acq_times[0].sec85) < 100 for t in acq_times)
+    return acq_times[0]
 
 
 def _retrieve_scene_footprint(arg_in: list[Path]) -> tuple[float, float, float, float]:
@@ -1042,16 +1237,41 @@ def _retrieve_scene_footprint(arg_in: list[Path]) -> tuple[float, float, float, 
         mtd.close()
         footprint_slc = (corners.min(axis=0)[0], corners.max(axis=0)[0], corners.min(axis=0)[1], corners.max(axis=0)[1])
 
-    if footprint_grd is not None and footprint_slc is not None:
-        # checking that footprints in both GRD and SLC are very close
-        assert np.abs(np.max(np.array(footprint_grd) - np.array(footprint_slc))) < 0.5
-        return footprint_grd
+    footprints_cog = []
+    for json_file in [f for f in arg_in if str(f).endswith(_COG_METADATA_EXTENSION)]:
+        item = read_stac_item(json_file)
+        if item is not None:
+            footprints_cog.append(footprint_from_stac_item(item))
 
-    if footprint_grd is not None:
-        return footprint_grd
+    footprints = [f for f in (footprint_grd, footprint_slc) if f is not None] + footprints_cog
+    if not footprints:
+        return None
+    # checking that footprints of all channels are very close
+    assert all(np.abs(np.max(np.array(f) - np.array(footprints[0]))) < 0.5 for f in footprints)
+    return footprints[0]
 
-    if footprint_slc is not None:
-        return footprint_slc
+
+def footprint_from_stac_item(item: dict) -> tuple[float, float, float, float]:
+    """Scene footprint from an ICEYE COG STAC item, from its geometry or, if missing, from its bounding box.
+
+    Parameters
+    ----------
+    item : dict
+        STAC item dictionary
+
+    Returns
+    -------
+    tuple[float, float, float, float]
+        footprint as (min lat, max lat, min lon, max lon)
+    """
+    geometry = item.get("geometry") or {}
+    if geometry.get("type") == "Polygon":
+        lon_lat = np.array(geometry["coordinates"][0], dtype=float)[:, :2]
+        return (lon_lat[:, 1].min(), lon_lat[:, 1].max(), lon_lat[:, 0].min(), lon_lat[:, 0].max())
+    bbox = item["bbox"]
+    half = len(bbox) // 2  # 2D bbox has 4 values, 3D bbox has 6 values
+    min_lon, min_lat, max_lon, max_lat = bbox[0], bbox[1], bbox[half], bbox[half + 1]
+    return (min_lat, max_lat, min_lon, max_lon)
 
 
 def is_iceye_product(product: str | Path) -> bool:
