@@ -155,7 +155,7 @@ def read_channel_data(
         dataset.close()
     else:
         # GRD case
-        img_store = tifffile.imread(raster_file, aszarr=True)
+        img_store = tifffile.imread(raster_file, aszarr=True, level=0)  # full resolution level, if overviews exist
         z = zarr.open(img_store, mode="r")
         if block_to_read is None:
             target_area = z[:]

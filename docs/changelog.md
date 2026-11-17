@@ -8,6 +8,15 @@ tags:
 
 # Changelog
 
+## Unreleased
+
+**Bug fixes**
+
+- ICEYE GRD: the incidence angle polynomial annotated in the .xml metadata is a function of the ground range in meters,
+  it was evaluated at range pixel indexes, giving wrong incidence angles (and sigma nought to beta nought conversions)
+  away from near range
+- ICEYE GRD: GeoTiffs with overview levels are read at full resolution (reading failed before)
+
 ## v1.1.2
 
 **Bug fixes**
