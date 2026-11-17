@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 import numpy as np
 from numpy.polynomial import Polynomial
@@ -60,6 +60,14 @@ class StandardSARAcquisitionMode(Enum):
     WAVE = auto()
     ELEVATION_NOTCH = auto()
     UNKNOWN = auto()
+
+
+class MGRSGrid(NamedTuple):
+    """Military Grid Reference System zone identification."""
+
+    utm_zone: int
+    latitude_band: str
+    grid_square: str
 
 
 @dataclass

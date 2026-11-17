@@ -267,6 +267,11 @@ def read_channel_metadata(prod: S1ZarrProduct, channel: str) -> S1ChannelMetadat
     )
 
 
+def read_ard_channel_metadata(prod: S1ZarrProduct, channel: str) -> None:
+    # channel_structure = prod.internal_structure_map.get_channel_structure(channel)
+    ...
+
+
 def read_channel_noise_vectors(
     prod: S1ZarrProduct, channel: str
 ) -> tuple[list[S1AzimuthNoiseVector] | None, list[S1RangeNoiseVector] | None]:
@@ -401,3 +406,39 @@ def read_channel_data(
     data_slice = np.concatenate(data_parts, axis=0)
 
     return data_slice * scaling_conversion
+
+
+def read_ard_channel_data(
+    prod: S1ZarrProduct,
+    channel: str,
+    block_to_read: list[int],
+    scaling_conversion: float = 1,
+) -> xr.DataArray:
+
+    channel_structure = prod.internal_structure_map.get_channel_structure(channel)
+    pol_index = channel_structure.polarization.name
+    y_start, x_start, num_y, num_x = block_to_read
+    y_stop = y_start + num_y
+    x_stop = x_start + num_x
+    dt = xr.open_datatree(prod.product_path, engine="zarr", chunks={})
+    try:
+        var = list(dt[channel_structure.group_name]["measurements"].data_vars)[0]
+        data_group = dt[channel_structure.group_name]["measurements"]
+        data = data_group[var].sel(polarization=pol_index).isel(x=slice(x_start, x_stop), y=slice(y_start, y_stop))
+        clean_data = xr.DataArray(
+            data=data.data * scaling_conversion,
+            dims=("y", "x"),
+            coords={
+                "x": data.x,
+                "y": data.y,
+            },
+            name="tile",
+            attrs={
+                "gmrs": channel_structure.mgrs_zone,
+                "radiometric_quantity": var,
+                "units": "m²/m²",
+            },
+        )
+    finally:
+        dt.close()
+    return clean_data

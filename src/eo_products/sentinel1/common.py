@@ -67,6 +67,7 @@ class S1L1ProductType(Enum):
 
     SLC = "SLC"  # Slant Range, Single Look Complex (SLC, lvl 1)
     GRD = "GRD"  # Ground Range Multi Look Detected (GRD, lvl 1, phase lost)
+    NRB = "NRB"  # Analysis Ready Data (ARD), Normalized Radar Backscatter (NRB)
 
 
 class S1DCEstimateMethod(Enum):

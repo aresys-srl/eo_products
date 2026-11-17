@@ -14,6 +14,7 @@ import xarray as xr
 from perseo_core.timing import PreciseDateTime
 
 from eo_products.common.utilities import (
+    MGRSGrid,
     SARPolarization,
 )
 from eo_products.sentinel1.common import (
@@ -37,6 +38,23 @@ class S1ZarrBurstStructure:
     azimuth_stop_time: PreciseDateTime
     range_start: float
     range_stop: float
+
+
+@dataclass
+class S1ZarrARDChannelStructure:
+    """Internal definition of a channel for the Sentinel-1 Zarr ARD product."""
+
+    name: str
+    group_name: str
+    mode: S1AcquisitionMode
+    polarization: SARPolarization
+    mgrs_zone: MGRSGrid
+    lines: int
+    samples: int
+    lines_start: float
+    lines_stop: float
+    samples_start: float
+    samples_stop: float
 
 
 @dataclass
@@ -148,6 +166,39 @@ class S1ZarrInternalStructureMap:
             raise KeyError(f"Channel '{channel}' not found.") from None
 
 
+@dataclass
+class S1ZarrARDInternalStructureMap:
+    """Definition of internal structure and channels of the Sentinel-1 Zarr ARD product."""
+
+    product_type: S1L1ProductType
+    mode: S1AcquisitionMode
+    channel_structures: list[S1ZarrARDChannelStructure]
+
+    # Generated fields
+    channels: list[str] = field(init=False)
+
+    _channel_map: dict[str, S1ZarrARDChannelStructure] = field(
+        init=False,
+        repr=False,
+    )
+
+    def __post_init__(self) -> None:
+        if not self.channel_structures:
+            raise ValueError("At least one channel structure is required.")
+
+        self.channel_structures.sort(key=lambda channel: channel.name)
+
+        self._channel_map = {channel.name: channel for channel in self.channel_structures}
+
+        self.channels = list(self._channel_map)
+
+    def get_channel_structure(self, channel: str) -> S1ZarrARDChannelStructure:
+        try:
+            return self._channel_map[channel]
+        except KeyError:
+            raise KeyError(f"Channel '{channel}' not found.") from None
+
+
 class S1ZarrProduct:
     """Sentinel-1 Zarr product object"""
 
@@ -176,9 +227,17 @@ class S1ZarrProduct:
 
             # TODO: check with Wave products
             self._internal_structure_map = zarr_internal_structure_mapping(prod=dt)
-
             first_channel = self._internal_structure_map.get_channel_structure(self._internal_structure_map.channels[0])
-            processing_history: dict[str, list[dict[str]]] = dt[first_channel.bursts[0]].attrs["processing_history"]
+
+            is_ard = False
+            if isinstance(first_channel, S1ZarrARDChannelStructure):
+                processing_history: dict[str, list[dict[str]]] = dt[first_channel.group_name].attrs[
+                    "processing_history"
+                ]
+                is_ard = True
+            else:
+                processing_history: dict[str, list[dict[str]]] = dt[first_channel.bursts[0]].attrs["processing_history"]
+            self._is_ard = is_ard
 
             adf = next(
                 (item["adfs"] for history in processing_history.values() for item in history if "adfs" in item),
@@ -194,12 +253,17 @@ class S1ZarrProduct:
             dt.close()
 
     @property
+    def is_ard(self) -> bool:
+        """If the current product is an Analysis Ready Data (ARD) product."""
+        return self._is_ard
+
+    @property
     def auxiliary_data_files(self) -> dict[str, str]:
         """Auxiliary data files used to generate this product."""
         return self._adf
 
     @property
-    def internal_structure_map(self) -> S1ZarrInternalStructureMap:
+    def internal_structure_map(self) -> S1ZarrInternalStructureMap | S1ZarrARDInternalStructureMap:
         """Zarr channels internal structure map."""
         return self._internal_structure_map
 
@@ -325,7 +389,7 @@ def zarr_internal_structure_mapping(prod: xr.DataTree) -> S1ZarrInternalStructur
                 channels_struct.append(S1ZarrChannelStructure(name=channel, bursts_structures=burst_struct))
         case S1L1ProductType.GRD:
             swath = prod.attrs["stac_discovery"]["properties"]["sar:instrument_mode"]
-            mode = swath
+            mode = S1AcquisitionMode[swath]
             burst_channels_association = {
                 "_".join(["grd", swath.lower(), ch.split("_")[-1].lower()]): ch for ch in group_names
             }
@@ -353,11 +417,57 @@ def zarr_internal_structure_mapping(prod: xr.DataTree) -> S1ZarrInternalStructur
                     )
                 ]
                 channels_struct.append(S1ZarrChannelStructure(name=channel, bursts_structures=burst_struct))
-
-    return S1ZarrInternalStructureMap(mode=mode, product_type=product_type, channel_structures=channels_struct)
+        case S1L1ProductType.NRB:
+            mode = S1AcquisitionMode[prod.attrs["stac_discovery"]["properties"]["sar:instrument_mode"]]
+            polarizations = prod.attrs["stac_discovery"]["properties"]["sar:polarizations"]
+            burst_channels_association = dict(
+                sorted(
+                    {
+                        f"nrb_{ch.split('_')[-1].lower()}_{p.lower()}": ch for ch in group_names for p in polarizations
+                    }.items()
+                )
+            )
+            channels_struct = []
+            for channel, ch_group in burst_channels_association.items():
+                channels_struct.append(
+                    S1ZarrARDChannelStructure(
+                        name=channel,
+                        group_name=ch_group,
+                        mode=mode,
+                        polarization=SARPolarization[channel.split("_")[-1].upper()],
+                        mgrs_zone=_mgrs_from_dict(prod[ch_group].attrs["other_metadata"]["mgrs"]),
+                        lines=prod[ch_group]["measurements"].y.size,
+                        samples=prod[ch_group]["measurements"].x.size,
+                        lines_start=float(prod[ch_group]["measurements"].y.data[0]),
+                        lines_stop=float(prod[ch_group]["measurements"].y.data[-1]),
+                        samples_start=float(prod[ch_group]["measurements"].x.data[0]),
+                        samples_stop=float(prod[ch_group]["measurements"].x.data[-1]),
+                    )
+                )
+    return _internal_structure_map_from_items(mode=mode, product_type=product_type, structures=channels_struct)
 
 
 def _channel_pattern_from_group(path: str) -> str:
     """Get the channel pattern pol_swath from from full group name."""
     name_parts = path.replace("/measurements", "").split("_")
     return "_".join([name_parts[-3], name_parts[-2]]).lower()
+
+
+def _mgrs_from_dict(data: dict) -> MGRSGrid:
+    """Factory method to parse raw JSON dictionary."""
+    return MGRSGrid(
+        utm_zone=int(data["UTM_zone"]),
+        latitude_band=data["latitude_band"].upper(),
+        grid_square=data["grid_square"].upper(),
+    )
+
+
+def _internal_structure_map_from_items(
+    mode: S1AcquisitionMode,
+    product_type: S1L1ProductType,
+    structures: list[S1ZarrChannelStructure] | list[S1ZarrARDChannelStructure],
+) -> S1ZarrInternalStructureMap | S1ZarrARDInternalStructureMap:
+    """Generate a proper Internal Structure Mapping based on product type."""
+    if isinstance(structures[0], S1ZarrChannelStructure):
+        return S1ZarrInternalStructureMap(mode=mode, product_type=product_type, channel_structures=structures)
+    return S1ZarrARDInternalStructureMap(mode=mode, product_type=product_type, channel_structures=structures)
