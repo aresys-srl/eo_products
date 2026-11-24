@@ -54,7 +54,7 @@ class TERRASARXProductVariant(Enum):
     EEC = "EEC"
 
 
-class TERRASARXAcquisitionModes(Enum):
+class TERRASARXAcquisitionMode(Enum):
     """TERRASAR-X L1 acquisition modes"""
 
     STRIPMAP = "STRIPMAP"
@@ -62,7 +62,7 @@ class TERRASARXAcquisitionModes(Enum):
     SPOTLIGHT = "SPOTLIGHT"
 
 
-class TERRASARXProjections(Enum):
+class TERRASARXProjection(Enum):
     """TERRASAR-X L1 projection types"""
 
     SLANTRANGE = "SLANTRANGE"
@@ -71,9 +71,19 @@ class TERRASARXProjections(Enum):
     MAP = "MAP"
 
 
+_IMAGING_MODE_MAPPING = {
+    "SM": TERRASARXAcquisitionMode.STRIPMAP,
+    "SC": TERRASARXAcquisitionMode.SCANSAR,
+    "WS": TERRASARXAcquisitionMode.SCANSAR,
+    "SL": TERRASARXAcquisitionMode.SPOTLIGHT,
+    "HS": TERRASARXAcquisitionMode.SPOTLIGHT,
+    "ST": TERRASARXAcquisitionMode.SPOTLIGHT,
+}
+
+
 def get_basic_info_from_metadata(
     metadata_path: str | Path,
-) -> tuple[PreciseDateTime, TERRASARXProductVariant, tuple[float, float, float, float], TERRASARXAcquisitionModes]:
+) -> tuple[PreciseDateTime, TERRASARXProductVariant, tuple[float, float, float, float], TERRASARXAcquisitionMode]:
     """Recovering basic product information
     Parameters
     ----------
@@ -88,7 +98,7 @@ def get_basic_info_from_metadata(
         product variant
     tuple[float, float, float, float]
         scene footprint in [min lat, max lat, min lon, max lon]
-    TERRASARXAcquisitionModes
+    TERRASARXAcquisitionMode
         acquisition mode
     """
     metadata_path = Path(metadata_path)
@@ -258,7 +268,7 @@ def burst_info_from_metadata(
 def dataset_info_from_metadata(
     root: etree._Element,
     projection: SARProjection,
-    acq_mode: TERRASARXAcquisitionModes,
+    acq_mode: TERRASARXAcquisitionMode,
     prod_variant: TERRASARXProductVariant,
 ) -> DatasetInfo:
     """Creating a DatasetInfo metadata element from xml nodes.
@@ -269,7 +279,7 @@ def dataset_info_from_metadata(
         root metadata xml node
     projection : SARProjection
         SAR product projection
-    acq_mode : TERRASARXAcquisitionModes
+    acq_mode : TERRASARXAcquisitionMode
         TERRASAR-X product acquisition mode
     prod_variant : TERRASARXProductVariant
         TERRASAR-X product variant
@@ -298,7 +308,7 @@ def sampling_constants_from_metadata(
     raster_info: RasterInfo,
     beam_id: str,
     projection: SARProjection,
-    acq_mode: TERRASARXAcquisitionModes,
+    acq_mode: TERRASARXAcquisitionMode,
 ) -> SARSamplingFrequencies:
     """Creating a SARSamplingFrequencies metadata element from xml nodes
 
@@ -312,7 +322,7 @@ def sampling_constants_from_metadata(
         beam identifier string
     projection : SARProjection
         SAR product projection
-    acq_mode : TERRASARXAcquisitionModes
+    acq_mode : TERRASARXAcquisitionMode
         TERRASAR-X acquisition mode
 
     Returns
@@ -330,7 +340,7 @@ def sampling_constants_from_metadata(
             assert len(parameter_node) == 1, "none or more than one nodes found"
             parameter_node = parameter_node[0]
 
-        if acq_mode == TERRASARXAcquisitionModes.SPOTLIGHT:
+        if acq_mode == TERRASARXAcquisitionMode.SPOTLIGHT:
             azimuth_bandwidth_freq_hz = float(parameter_node.xpath(".//azimuthLookBandwidth")[0].text)
         else:
             azimuth_bandwidth_freq_hz = float(parameter_node.xpath(".//totalProcessedAzimuthBandwidth")[0].text)
@@ -352,7 +362,7 @@ def sampling_constants_from_metadata(
     return sampling_constants
 
 
-def get_acquisition_mode(imaging_mode: str) -> TERRASARXAcquisitionModes:
+def get_acquisition_mode(imaging_mode: str) -> TERRASARXAcquisitionMode:
     """Convert TERRASAR-X imaging mode to acquisition mode
 
     Parameters
@@ -362,32 +372,21 @@ def get_acquisition_mode(imaging_mode: str) -> TERRASARXAcquisitionModes:
 
     Returns
     -------
-    TERRASARXAcquisitionModes
+    TERRASARXAcquisitionMode
         acquisition mode among STRIPMAP, SCANSAR, SPOTLIGHT
     """
-    imaging_mode = imaging_mode.upper()
-
-    mapping = {
-        "SM": TERRASARXAcquisitionModes.STRIPMAP,
-        "SC": TERRASARXAcquisitionModes.SCANSAR,
-        "WS": TERRASARXAcquisitionModes.SCANSAR,
-        "SL": TERRASARXAcquisitionModes.SPOTLIGHT,
-        "HS": TERRASARXAcquisitionModes.SPOTLIGHT,
-        "ST": TERRASARXAcquisitionModes.SPOTLIGHT,
-    }
-
     try:
-        return mapping[imaging_mode]
+        return _IMAGING_MODE_MAPPING[imaging_mode.upper()]
     except KeyError as e:
         raise ValueError(f"Unknown imaging mode: {imaging_mode}") from e
 
 
-def get_SARProjection_from_TERRASARXProjection(projection: TERRASARXProjections) -> SARProjection:
+def get_SARProjection_from_TERRASARXProjection(projection: TERRASARXProjection) -> SARProjection:
     """Convert TERRASAR-X projection to generic SAR projection
 
     Parameters
     ----------
-    projection : TERRASARXProjections
+    projection : TERRASARXProjection
         TERRASAR-X product projection
 
     Returns
@@ -400,9 +399,9 @@ def get_SARProjection_from_TERRASARXProjection(projection: TERRASARXProjections)
     InvalidTERRASARXProjection
         Invalid TERRASAR-X product projection
     """
-    if projection == TERRASARXProjections.GROUNDRANGE:
+    if projection == TERRASARXProjection.GROUNDRANGE:
         return SARProjection.GROUND_RANGE
-    elif projection == TERRASARXProjections.SLANTRANGE:
+    elif projection == TERRASARXProjection.SLANTRANGE:
         return SARProjection.SLANT_RANGE
     else:
         raise InvalidTERRASARXProjection(projection)
@@ -512,7 +511,7 @@ def get_beams_list_from_metadata(product_info_node: etree._Element) -> list[str]
         product_info_node.xpath(".//productVariantInfo/productVariant")[0].text.upper()
     )
     acq_mode = get_acquisition_mode(product_info_node.xpath(".//acquisitionInfo/imagingMode")[0].text.upper())
-    if product_variant == TERRASARXProductVariant.SSC and acq_mode == TERRASARXAcquisitionModes.SCANSAR:
+    if product_variant == TERRASARXProductVariant.SSC and acq_mode == TERRASARXAcquisitionMode.SCANSAR:
         beam_list_node = product_info_node.xpath(".//acquisitionInfo/imagingModeSpecificInfo/scanSAR/beamList")[0]
         beam_IDs = [beam.text for beam in beam_list_node.findall(".//beamID")]
     else:
@@ -657,7 +656,7 @@ def doppler_centroid_poly_from_metadata(root: etree._Element, beam_id: str) -> D
     if len(doppler_centroid_nodes) == 1:
         doppler_centroid_node = doppler_centroid_nodes[0]
     # TODO: manage multiple strips! Here we just take the first.
-    elif acq_mode == TERRASARXAcquisitionModes.SCANSAR and prod_variant != TERRASARXProductVariant.SSC:
+    elif acq_mode == TERRASARXAcquisitionMode.SCANSAR and prod_variant != TERRASARXProductVariant.SSC:
         doppler_centroid_node = doppler_centroid_nodes[0]
     else:
         doppler_centroid_node = [r for r in doppler_centroid_nodes if r.xpath(".//beamID")[0].text == beam_id]
@@ -901,7 +900,7 @@ class TERRASARXProduct:
         return self._acq_time
 
     @property
-    def acquisition_mode(self) -> TERRASARXAcquisitionModes:
+    def acquisition_mode(self) -> TERRASARXAcquisitionMode:
         """Acquisition mode for this product"""
         return get_acquisition_mode(self._imaging_mode)
 
@@ -940,7 +939,7 @@ def is_terrasarx_product(product: str | Path) -> bool:
     if not product.is_dir():
         return False
 
-    if not product.joinpath("ANNOTATION", _GEOREF_FILE):
+    if not product.joinpath("ANNOTATION", _GEOREF_FILE).exists():
         return False
 
     metadata = product.joinpath(f"{product.name}.xml")

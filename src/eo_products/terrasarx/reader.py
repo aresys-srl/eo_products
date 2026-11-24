@@ -43,7 +43,7 @@ def read_channel_metadata(
 
     _, prod_variant, _, acq_mode = support.get_basic_info_from_metadata(xml_path)
     projection = support.get_SARProjection_from_TERRASARXProjection(
-        support.TERRASARXProjections(product_info_node.xpath(".//productVariantInfo/projection")[0].text)
+        support.TERRASARXProjection(product_info_node.xpath(".//productVariantInfo/projection")[0].text)
     )
 
     if associated_cos_raster_path:
@@ -72,7 +72,7 @@ def read_channel_metadata(
 
     calibration_factor = support.calibration_factor_from_metadata(root, beam_id)
 
-    if prod_variant == support.TERRASARXProductVariant.SSC and acq_mode == support.TERRASARXAcquisitionModes.SCANSAR:
+    if prod_variant == support.TERRASARXProductVariant.SSC and acq_mode == support.TERRASARXAcquisitionMode.SCANSAR:
         assert associated_cos_raster_path is not None, "raster file .cos not provided"
         burst_info = support.burst_info_from_raster(raster_info=raster_info, raster_file=associated_cos_raster_path)
     else:
