@@ -8,6 +8,12 @@ tags:
 
 # Changelog
 
+## v1.1.3
+
+**Bug fixes**
+
+- Fixed bug in terrasarx doppler evaluator creation
+
 ## v1.1.2
 
 **Bug fixes**

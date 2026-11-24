@@ -366,11 +366,20 @@ def get_acquisition_mode(imaging_mode: str) -> TERRASARXAcquisitionModes:
         acquisition mode among STRIPMAP, SCANSAR, SPOTLIGHT
     """
     imaging_mode = imaging_mode.upper()
-    if imaging_mode == "SM":
-        return TERRASARXAcquisitionModes.STRIPMAP
-    if imaging_mode == "SC":
-        return TERRASARXAcquisitionModes.SCANSAR
-    return TERRASARXAcquisitionModes.SPOTLIGHT
+
+    mapping = {
+        "SM": TERRASARXAcquisitionModes.STRIPMAP,
+        "SC": TERRASARXAcquisitionModes.SCANSAR,
+        "WS": TERRASARXAcquisitionModes.SCANSAR,
+        "SL": TERRASARXAcquisitionModes.SPOTLIGHT,
+        "HS": TERRASARXAcquisitionModes.SPOTLIGHT,
+        "ST": TERRASARXAcquisitionModes.SPOTLIGHT,
+    }
+
+    try:
+        return mapping[imaging_mode]
+    except KeyError as e:
+        raise ValueError(f"Unknown imaging mode: {imaging_mode}") from e
 
 
 def get_SARProjection_from_TERRASARXProjection(projection: TERRASARXProjections) -> SARProjection:
@@ -639,7 +648,9 @@ def doppler_centroid_poly_from_metadata(root: etree._Element, beam_id: str) -> D
         DopplerEvaluator dataclass for Doppler Centroid polynomial
     """
     acq_mode = get_acquisition_mode(root.xpath(".//productInfo/acquisitionInfo/imagingMode")[0].text)
-    prod_variant = get_acquisition_mode(root.xpath(".//productInfo/productVariantInfo/productVariant")[0].text)
+    prod_variant = TERRASARXProductVariant(
+        root.xpath(".//productInfo/productVariantInfo/productVariant")[0].text.upper()
+    )
     doppler_poly_list = []
     doppler_node = root.xpath(".//processing/doppler")[0]
     doppler_centroid_nodes = doppler_node.findall(".//dopplerCentroid")
