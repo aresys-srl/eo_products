@@ -134,7 +134,7 @@ def read_product_metadata(xml_path: str | Path) -> dict[str, support.TERRASARXCh
 
 
 def open_product(file_path: str | Path) -> support.TERRASARXProduct:
-    """Open a TERRASARX product
+    """Open a TerraSAR-X, TanDEM-X, or PAZ product.
 
     Parameters
     ----------
