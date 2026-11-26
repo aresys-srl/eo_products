@@ -10,9 +10,13 @@ tags:
 
 ## v1.1.3
 
+**New Features**
+
+- Adapting TerraSAR-X reader to support PAZ (they share the same format)
+
 **Bug fixes**
 
-- Fixed bug in terrasarx doppler evaluator creation
+- Fixed bug in TerraSAR-X doppler evaluator creation
 
 ## v1.1.2
 
